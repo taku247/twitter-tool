@@ -1,0 +1,505 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>API Test Dashboard</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
+            background: linear-gradient(135deg, #0c0c0c 0%, #1a1a1a 100%);
+            min-height: 100vh;
+            color: #ffffff;
+            line-height: 1.6;
+        }
+        
+        .header {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 1rem 0;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+        
+        .nav {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .logo {
+            font-size: 1.5rem;
+            font-weight: 700;
+            background: linear-gradient(45deg, #00d4ff, #0099cc);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        .nav-links {
+            display: flex;
+            gap: 2rem;
+            list-style: none;
+        }
+        
+        .nav-link {
+            color: rgba(255, 255, 255, 0.7);
+            text-decoration: none;
+            font-weight: 500;
+            transition: color 0.3s ease;
+        }
+        
+        .nav-link:hover {
+            color: #00d4ff;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 3rem 2rem;
+        }
+        
+        .hero {
+            text-align: center;
+            margin-bottom: 4rem;
+        }
+        
+        .hero h1 {
+            font-size: 3rem;
+            font-weight: 800;
+            margin-bottom: 1rem;
+            background: linear-gradient(45deg, #00d4ff, #ffffff, #0099cc);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        .hero p {
+            font-size: 1.2rem;
+            color: rgba(255, 255, 255, 0.6);
+            max-width: 600px;
+            margin: 0 auto;
+        }
+        
+        .status-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 2rem;
+            margin-bottom: 3rem;
+        }
+        
+        .card {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            padding: 2rem;
+            transition: all 0.3s ease;
+        }
+        
+        .card:hover {
+            transform: translateY(-5px);
+            background: rgba(255, 255, 255, 0.08);
+            border-color: rgba(0, 212, 255, 0.3);
+        }
+        
+        .card h3 {
+            color: #00d4ff;
+            margin-bottom: 1rem;
+            font-size: 1.3rem;
+        }
+        
+        .status-indicator {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem 1rem;
+            border-radius: 20px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            margin-bottom: 1rem;
+        }
+        
+        .status-connected {
+            background: rgba(0, 255, 136, 0.2);
+            border: 1px solid rgba(0, 255, 136, 0.3);
+            color: #00ff88;
+        }
+        
+        .status-error {
+            background: rgba(255, 0, 68, 0.2);
+            border: 1px solid rgba(255, 0, 68, 0.3);
+            color: #ff0044;
+        }
+        
+        .status-loading {
+            background: rgba(255, 193, 7, 0.2);
+            border: 1px solid rgba(255, 193, 7, 0.3);
+            color: #ffc107;
+        }
+        
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            animation: pulse 2s ease-in-out infinite;
+        }
+        
+        .connected .status-dot {
+            background: #00ff88;
+        }
+        
+        .error .status-dot {
+            background: #ff0044;
+        }
+        
+        .loading .status-dot {
+            background: #ffc107;
+        }
+        
+        button {
+            background: linear-gradient(45deg, #00d4ff, #0099cc);
+            color: white;
+            padding: 0.8rem 1.5rem;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            margin: 0.5rem 0.5rem 0.5rem 0;
+        }
+        
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(0, 212, 255, 0.3);
+        }
+        
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+        
+        .test-section {
+            margin-top: 2rem;
+            padding-top: 2rem;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .result-box {
+            margin-top: 1rem;
+            padding: 1rem;
+            border-radius: 8px;
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            font-size: 0.85rem;
+            white-space: pre-wrap;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        
+        .success {
+            border-color: rgba(0, 255, 136, 0.3);
+            background: rgba(0, 255, 136, 0.1);
+            color: #00ff88;
+        }
+        
+        .error {
+            border-color: rgba(255, 0, 68, 0.3);
+            background: rgba(255, 0, 68, 0.1);
+            color: #ff0044;
+        }
+        
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+        
+        @media (max-width: 768px) {
+            .hero h1 {
+                font-size: 2rem;
+            }
+            
+            .nav {
+                padding: 0 1rem;
+            }
+            
+            .container {
+                padding: 2rem 1rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <nav class="nav">
+            <div class="logo">API Test Dashboard</div>
+            <ul class="nav-links">
+                <li><a href="/" class="nav-link">Dashboard</a></li>
+                <li><a href="/test.html" class="nav-link">API Test</a></li>
+                <li><a href="/kaitotweet.html" class="nav-link">KaitoTweet</a></li>
+                <li><a href="#" class="nav-link">Docs</a></li>
+            </ul>
+        </nav>
+    </header>
+    
+    <div class="container">
+        <div class="hero">
+            <h1>API Status & Testing</h1>
+            <p>システムの健全性チェックとAPI機能のテストを行います</p>
+        </div>
+        
+        <div class="status-grid">
+            <div class="card">
+                <h3>System Health</h3>
+                <div id="systemStatus" class="status-indicator status-loading">
+                    <span class="status-dot loading"></span>
+                    <span>Checking...</span>
+                </div>
+                <p id="systemInfo">システム情報を取得中...</p>
+                <button onclick="checkSystemHealth()">Refresh Status</button>
+            </div>
+            
+            <div class="card">
+                <h3>TwitterAPI.io</h3>
+                <div id="twitterStatus" class="status-indicator status-loading">
+                    <span class="status-dot loading"></span>
+                    <span>Checking...</span>
+                </div>
+                <p id="twitterInfo">Twitter API設定を確認中...</p>
+                <button onclick="testTwitterAPI()">Test Search</button>
+            </div>
+            
+            <div class="card">
+                <h3>OpenAI ChatGPT</h3>
+                <div id="openaiStatus" class="status-indicator status-loading">
+                    <span class="status-dot loading"></span>
+                    <span>Checking...</span>
+                </div>
+                <p id="openaiInfo">OpenAI API設定を確認中...</p>
+                <button onclick="testOpenAIConnection()">Test Connection</button>
+                <button onclick="testOpenAI()">Test Summary</button>
+            </div>
+        </div>
+        
+        <div class="card">
+            <h3>Test Results</h3>
+            <div class="test-section">
+                <h4 style="color: #00d4ff; margin-bottom: 1rem;">Manual API Tests</h4>
+                <button onclick="runAllTests()">Run All Tests</button>
+                <button onclick="clearResults()">Clear Results</button>
+                
+                <div id="testResults" class="result-box" style="display: none;">
+                    テスト結果がここに表示されます...
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let systemHealthData = null;
+
+        // ページロード時の初期化
+        window.addEventListener('DOMContentLoaded', function() {
+            checkSystemHealth();
+        });
+
+        // システムヘルスチェック
+        async function checkSystemHealth() {
+            updateStatus('system', 'loading', 'Checking...');
+            updateStatus('twitter', 'loading', 'Checking...');
+            updateStatus('openai', 'loading', 'Checking...');
+            
+            try {
+                const response = await fetch('/api/health');
+                const data = await response.json();
+                systemHealthData = data;
+                
+                // システム全体のステータス
+                updateStatus('system', 'connected', 'Online');
+                document.getElementById('systemInfo').textContent = 
+                    `Server Time: ${new Date(data.timestamp).toLocaleString()}`;
+                
+                // Twitter APIステータス
+                if (data.services.twitter) {
+                    updateStatus('twitter', 'connected', 'Connected');
+                    document.getElementById('twitterInfo').textContent = 
+                        'TwitterAPI.io の設定が完了しています';
+                } else {
+                    updateStatus('twitter', 'error', 'Not Configured');
+                    document.getElementById('twitterInfo').textContent = 
+                        'TwitterAPI.io のAPIキーが設定されていません';
+                }
+                
+                // OpenAI APIステータス
+                if (data.services.openai) {
+                    updateStatus('openai', 'connected', 'Connected');
+                    document.getElementById('openaiInfo').textContent = 
+                        'OpenAI APIの設定が完了しています';
+                } else {
+                    updateStatus('openai', 'error', 'Not Configured');
+                    document.getElementById('openaiInfo').textContent = 
+                        'OpenAI APIキーが設定されていません';
+                }
+                
+            } catch (error) {
+                updateStatus('system', 'error', 'Offline');
+                document.getElementById('systemInfo').textContent = 
+                    `Error: ${error.message}`;
+                updateStatus('twitter', 'error', 'Unknown');
+                updateStatus('openai', 'error', 'Unknown');
+            }
+        }
+
+        // ステータス表示の更新
+        function updateStatus(service, status, text) {
+            const element = document.getElementById(`${service}Status`);
+            const dot = element.querySelector('.status-dot');
+            
+            // クラスをリセット
+            element.className = 'status-indicator';
+            dot.className = 'status-dot';
+            
+            // 新しいステータスを適用
+            element.classList.add(`status-${status}`);
+            dot.classList.add(status);
+            
+            // テキストを更新
+            element.querySelector('span:last-child').textContent = text;
+        }
+
+        // Twitter API テスト
+        async function testTwitterAPI() {
+            showTestResult('Testing Twitter API...', 'loading');
+            
+            try {
+                const response = await fetch('/api/twitter/search', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ query: 'test' })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    showTestResult(`✅ Twitter API Test Success\n\nResponse:\n${JSON.stringify(data, null, 2)}`, 'success');
+                } else {
+                    showTestResult(`❌ Twitter API Test Failed\n\nError:\n${JSON.stringify(data, null, 2)}`, 'error');
+                }
+            } catch (error) {
+                showTestResult(`❌ Twitter API Network Error\n\n${error.message}`, 'error');
+            }
+        }
+
+        // OpenAI API 接続テスト
+        async function testOpenAIConnection() {
+            showTestResult('Testing OpenAI API connection...', 'loading');
+            
+            try {
+                const response = await fetch('/api/openai/test', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        message: 'Hello ChatGPT! Can you confirm this connection is working?' 
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok && data.success) {
+                    showTestResult(`✅ OpenAI API Connection Test SUCCESS\n\nRequest: "${data.request}"\n\nChatGPT Response: "${data.response}"\n\nModel: ${data.model}\nTokens Used: ${JSON.stringify(data.usage, null, 2)}`, 'success');
+                } else {
+                    showTestResult(`❌ OpenAI API Connection Test Failed\n\nError:\n${JSON.stringify(data, null, 2)}`, 'error');
+                }
+            } catch (error) {
+                showTestResult(`❌ OpenAI API Network Error\n\n${error.message}`, 'error');
+            }
+        }
+
+        // OpenAI API 要約テスト（未実装）
+        async function testOpenAI() {
+            showTestResult('Testing OpenAI Summary API...', 'loading');
+            
+            try {
+                const response = await fetch('/api/twitter/summarize', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        tweets: [{ text: 'This is a test tweet' }], 
+                        summaryType: 'brief' 
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (response.status === 501) {
+                    showTestResult(`🚧 OpenAI Summary API - Feature Not Implemented\n\nResponse:\n${JSON.stringify(data, null, 2)}\n\nNote: This is expected as the summary feature is not yet implemented. Use "Test Connection" to verify OpenAI API access.`, 'success');
+                } else if (response.status === 503) {
+                    showTestResult(`❌ OpenAI API Not Configured\n\nResponse:\n${JSON.stringify(data, null, 2)}`, 'error');
+                } else {
+                    showTestResult(`✅ OpenAI Summary API Response\n\nResponse:\n${JSON.stringify(data, null, 2)}`, 'success');
+                }
+            } catch (error) {
+                showTestResult(`❌ OpenAI Summary API Network Error\n\n${error.message}`, 'error');
+            }
+        }
+
+        // 全テスト実行
+        async function runAllTests() {
+            showTestResult('Running all tests...\n', 'loading');
+            
+            await checkSystemHealth();
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            
+            appendTestResult('\n--- Twitter API Test ---\n');
+            await testTwitterAPI();
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            
+            appendTestResult('\n--- OpenAI Connection Test ---\n');
+            await testOpenAIConnection();
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            
+            appendTestResult('\n--- OpenAI Summary Test ---\n');
+            await testOpenAI();
+            
+            appendTestResult('\n--- All Tests Completed ---\n');
+        }
+
+        // テスト結果表示
+        function showTestResult(message, type = '') {
+            const resultBox = document.getElementById('testResults');
+            resultBox.style.display = 'block';
+            resultBox.className = `result-box ${type}`;
+            resultBox.textContent = message;
+        }
+
+        // テスト結果追記
+        function appendTestResult(message) {
+            const resultBox = document.getElementById('testResults');
+            resultBox.textContent += message;
+        }
+
+        // 結果クリア
+        function clearResults() {
+            const resultBox = document.getElementById('testResults');
+            resultBox.style.display = 'none';
+            resultBox.textContent = '';
+        }
+    </script>
+</body>
+</html>

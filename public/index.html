@@ -1,0 +1,831 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Twitter Analytics Dashboard</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
+            background: linear-gradient(135deg, #0c0c0c 0%, #1a1a1a 100%);
+            min-height: 100vh;
+            color: #ffffff;
+            line-height: 1.6;
+        }
+        
+        .header {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 1rem 0;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+        
+        .nav {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .logo {
+            font-size: 1.5rem;
+            font-weight: 700;
+            background: linear-gradient(45deg, #00d4ff, #0099cc);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        .nav-links {
+            display: flex;
+            gap: 2rem;
+            list-style: none;
+        }
+        
+        .nav-link {
+            color: rgba(255, 255, 255, 0.7);
+            text-decoration: none;
+            font-weight: 500;
+            transition: color 0.3s ease;
+        }
+        
+        .nav-link:hover {
+            color: #00d4ff;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 3rem 2rem;
+        }
+        
+        .hero {
+            text-align: center;
+            margin-bottom: 4rem;
+        }
+        
+        .hero h1 {
+            font-size: 3rem;
+            font-weight: 800;
+            margin-bottom: 1rem;
+            background: linear-gradient(45deg, #00d4ff, #ffffff, #0099cc);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        .hero p {
+            font-size: 1.2rem;
+            color: rgba(255, 255, 255, 0.6);
+            max-width: 600px;
+            margin: 0 auto;
+        }
+        
+        .dashboard {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 2rem;
+            margin-bottom: 3rem;
+        }
+        
+        .card {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            padding: 2rem;
+            transition: all 0.3s ease;
+        }
+        
+        .card:hover {
+            transform: translateY(-5px);
+            background: rgba(255, 255, 255, 0.08);
+            border-color: rgba(0, 212, 255, 0.3);
+        }
+        
+        .card h3 {
+            color: #00d4ff;
+            margin-bottom: 1rem;
+            font-size: 1.3rem;
+        }
+        
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 600;
+            color: rgba(255, 255, 255, 0.8);
+        }
+        
+        input[type="text"] {
+            width: 100%;
+            padding: 0.8rem 1rem;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 8px;
+            color: #ffffff;
+            font-size: 1rem;
+            transition: all 0.3s ease;
+        }
+        
+        input[type="text"]:focus {
+            outline: none;
+            border-color: #00d4ff;
+            background: rgba(255, 255, 255, 0.1);
+            box-shadow: 0 0 0 3px rgba(0, 212, 255, 0.1);
+        }
+        
+        input::placeholder {
+            color: rgba(255, 255, 255, 0.4);
+        }
+        
+        button {
+            background: linear-gradient(45deg, #00d4ff, #0099cc);
+            color: white;
+            padding: 0.8rem 2rem;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1rem;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(0, 212, 255, 0.3);
+        }
+        
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+        
+        .examples {
+            grid-column: 1 / -1;
+        }
+        
+        .examples h3 {
+            margin-bottom: 1rem;
+        }
+        
+        .example-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+        }
+        
+        .example-item {
+            background: rgba(0, 212, 255, 0.1);
+            border: 1px solid rgba(0, 212, 255, 0.2);
+            padding: 0.8rem;
+            border-radius: 8px;
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            font-size: 0.9rem;
+            color: #00d4ff;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .example-item:hover {
+            background: rgba(0, 212, 255, 0.2);
+            transform: scale(1.02);
+        }
+        
+        #loading {
+            display: none;
+            text-align: center;
+            color: #00d4ff;
+            margin: 2rem 0;
+            font-size: 1.1rem;
+        }
+        
+        #result {
+            margin-top: 2rem;
+            padding: 1.5rem;
+            border-radius: 12px;
+            white-space: pre-wrap;
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            max-height: 500px;
+            overflow-y: auto;
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .success {
+            border-color: rgba(0, 255, 136, 0.3);
+            background: rgba(0, 255, 136, 0.1);
+            color: #00ff88;
+        }
+        
+        .error {
+            border-color: rgba(255, 0, 68, 0.3);
+            background: rgba(255, 0, 68, 0.1);
+            color: #ff0044;
+        }
+        
+        .status-indicator {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.3rem 0.8rem;
+            background: rgba(0, 255, 136, 0.2);
+            border-radius: 20px;
+            font-size: 0.85rem;
+            color: #00ff88;
+        }
+        
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            background: #00ff88;
+            border-radius: 50%;
+            animation: pulse 2s ease-in-out infinite;
+        }
+        
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+        
+        @media (max-width: 768px) {
+            .dashboard {
+                grid-template-columns: 1fr;
+            }
+            
+            .hero h1 {
+                font-size: 2rem;
+            }
+            
+            .nav {
+                padding: 0 1rem;
+            }
+            
+            .container {
+                padding: 2rem 1rem;
+            }
+        }
+        
+        .spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(0, 212, 255, 0.3);
+            border-radius: 50%;
+            border-top-color: #00d4ff;
+            animation: spin 1s ease-in-out infinite;
+            margin-right: 10px;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        .search-tabs {
+            display: flex;
+            margin-bottom: 1.5rem;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 8px;
+            padding: 4px;
+        }
+        
+        .tab-btn {
+            flex: 1;
+            padding: 0.6rem 1rem;
+            background: transparent;
+            border: none;
+            color: rgba(255, 255, 255, 0.6);
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-weight: 500;
+        }
+        
+        .tab-btn.active {
+            background: linear-gradient(45deg, #00d4ff, #0099cc);
+            color: white;
+            transform: none;
+            box-shadow: none;
+        }
+        
+        .tab-btn:hover:not(.active) {
+            color: #00d4ff;
+            background: rgba(0, 212, 255, 0.1);
+        }
+        
+        .tab-content {
+            display: none;
+        }
+        
+        .tab-content.active {
+            display: block;
+        }
+        
+        .date-filters {
+            background: rgba(0, 212, 255, 0.05);
+            border: 1px solid rgba(0, 212, 255, 0.2);
+            border-radius: 8px;
+            padding: 1rem;
+            margin-bottom: 1.5rem;
+        }
+        
+        .quick-filters {
+            margin-top: 1rem;
+        }
+        
+        .quick-filter-btn {
+            background: rgba(0, 212, 255, 0.1);
+            border: 1px solid rgba(0, 212, 255, 0.3);
+            color: #00d4ff;
+            padding: 0.4rem 0.8rem;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.8rem;
+            transition: all 0.3s ease;
+        }
+        
+        .quick-filter-btn:hover {
+            background: rgba(0, 212, 255, 0.2);
+            transform: none;
+            box-shadow: none;
+        }
+        
+        input[type="datetime-local"] {
+            width: 100%;
+            padding: 0.8rem 1rem;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 8px;
+            color: #ffffff;
+            font-size: 1rem;
+            transition: all 0.3s ease;
+        }
+        
+        input[type="datetime-local"]:focus {
+            outline: none;
+            border-color: #00d4ff;
+            background: rgba(255, 255, 255, 0.1);
+            box-shadow: 0 0 0 3px rgba(0, 212, 255, 0.1);
+        }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <nav class="nav">
+            <div class="logo">Twitter Analytics</div>
+            <ul class="nav-links">
+                <li><a href="/" class="nav-link">Dashboard</a></li>
+                <li><a href="/test.html" class="nav-link">API Test</a></li>
+                <li><a href="/kaitotweet.html" class="nav-link">KaitoTweet</a></li>
+                <li><a href="#" class="nav-link">Docs</a></li>
+            </ul>
+        </nav>
+    </header>
+    
+    <div class="container">
+        <div class="hero">
+            <h1>Advanced Twitter Analytics</h1>
+            <p>Real-time data insights and algorithmic trading strategies powered by TwitterAPI.io</p>
+        </div>
+        
+        <div class="dashboard">
+            <div class="card examples">
+                <h3>Search Query Examples</h3>
+                <div class="example-grid">
+                    <div class="example-item" onclick="setQuery('from:elonmusk')">from:elonmusk</div>
+                    <div class="example-item" onclick="setQuery('bitcoin crypto')">bitcoin crypto</div>
+                    <div class="example-item" onclick="setQuery('&quot;artificial intelligence&quot; lang:en')">"AI" lang:en</div>
+                    <div class="example-item" onclick="setQuery('since:2025-01-01 until:2025-01-02')">Date range</div>
+                </div>
+            </div>
+            
+            <div class="card">
+                <h3>Search Configuration</h3>
+                
+                <div class="search-tabs">
+                    <button type="button" class="tab-btn active" onclick="switchTab('query')">Query Search</button>
+                    <button type="button" class="tab-btn" onclick="switchTab('list')">List Search</button>
+                </div>
+                
+                <form id="apiForm">
+                    <div id="queryTab" class="tab-content active">
+                        <div class="form-group">
+                            <label for="query">Search Query</label>
+                            <input type="text" id="query" placeholder="e.g., from:elonmusk" value="bitcoin" required>
+                        </div>
+                    </div>
+                    
+                    <div id="listTab" class="tab-content">
+                        <div class="form-group">
+                            <label for="listId">List ID</label>
+                            <input type="text" id="listId" placeholder="e.g., 123456789" required>
+                        </div>
+                        
+                        <div class="date-filters">
+                            <h4 style="color: #00d4ff; margin-bottom: 1rem; font-size: 1rem;">期間フィルター（オプション）</h4>
+                            
+                            <div class="form-group">
+                                <label for="sinceTime">開始日時</label>
+                                <input type="datetime-local" id="sinceTime" style="color-scheme: dark;">
+                                <small style="color: rgba(255, 255, 255, 0.5); font-size: 0.85rem;">指定日時以降のツイートを取得</small>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="untilTime">終了日時</label>
+                                <input type="datetime-local" id="untilTime" style="color-scheme: dark;">
+                                <small style="color: rgba(255, 255, 255, 0.5); font-size: 0.85rem;">指定日時以前のツイートを取得</small>
+                            </div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="includeReplies">リプライを含む</label>
+                            <select id="includeReplies" style="width: 100%; padding: 0.8rem 1rem; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.2); border-radius: 8px; color: #ffffff; font-size: 1rem;">
+                                <option value="false">いいえ（デフォルト）</option>
+                                <option value="true">はい</option>
+                            </select>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="maxResults">取得件数</label>
+                            <input type="text" value="全ページ自動取得" disabled style="opacity: 0.6;">
+                            <small style="color: rgba(255, 255, 255, 0.5); font-size: 0.85rem;">※ 利用可能な全てのツイートを自動で取得します（最大1,000件）</small>
+                        </div>
+                        
+                        <div class="quick-filters">
+                            <h4 style="color: #00d4ff; margin-bottom: 0.5rem; font-size: 0.9rem;">クイックフィルター</h4>
+                            <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                                <button type="button" class="quick-filter-btn" onclick="setQuickFilter('1hour')">過去1時間</button>
+                                <button type="button" class="quick-filter-btn" onclick="setQuickFilter('24hours')">過去24時間</button>
+                                <button type="button" class="quick-filter-btn" onclick="setQuickFilter('7days')">過去7日</button>
+                                <button type="button" class="quick-filter-btn" onclick="setQuickFilter('clear')">クリア</button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <button type="submit" id="submitBtn">
+                        <span id="buttonText">Execute Search</span>
+                    </button>
+                </form>
+                
+                <div style="margin-top: 1.5rem;">
+                    <div class="status-indicator">
+                        <span class="status-dot"></span>
+                        <span>API Connected</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div id="loading">
+            <div class="spinner"></div>
+            <p>Fetching real-time data...</p>
+        </div>
+        
+        <div id="result"></div>
+        
+        <!-- 要約セクション -->
+        <div id="summarySection" class="card" style="display: none; margin-top: 2rem;">
+            <h3>🤖 AI要約機能</h3>
+            <p style="color: rgba(255, 255, 255, 0.6); margin-bottom: 1.5rem;">
+                取得したツイートをChatGPT (GPT-4o) で要約します
+                <span style="color: rgba(255, 193, 7, 0.8); font-size: 0.85rem; margin-left: 1rem;">
+                    TODO 要約機能の精度向上
+                </span>
+            </p>
+            
+            <div class="form-group">
+                <label for="summaryType">要約タイプ</label>
+                <select id="summaryType" style="width: 100%; padding: 0.8rem 1rem; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.2); border-radius: 8px; color: #ffffff; font-size: 1rem;">
+                    <option value="brief">簡潔な要約（3-5行）</option>
+                    <option value="detailed">詳細な分析</option>
+                    <option value="trends">トレンド分析</option>
+                    <option value="sentiment">感情分析</option>
+                </select>
+            </div>
+            
+            <button type="button" onclick="generateSummary()" id="summaryBtn">
+                <span id="summaryBtnText">✨ 要約を生成</span>
+            </button>
+            
+            <div id="summaryLoading" style="display: none; text-align: center; margin: 1.5rem 0; color: #00d4ff;">
+                <div class="spinner"></div>
+                <p>ChatGPTで要約を生成中...</p>
+            </div>
+            
+            <div id="summaryResult" style="display: none; margin-top: 1.5rem;">
+                <h4 style="color: #00d4ff; margin-bottom: 1rem;">📋 要約結果</h4>
+                <div id="summaryContent" style="
+                    background: rgba(0, 212, 255, 0.1); 
+                    border: 1px solid rgba(0, 212, 255, 0.3); 
+                    border-radius: 8px; 
+                    padding: 1.5rem; 
+                    white-space: pre-wrap; 
+                    line-height: 1.6;
+                    color: #ffffff;
+                "></div>
+                <div id="summaryMeta" style="
+                    margin-top: 1rem; 
+                    padding-top: 1rem; 
+                    border-top: 1px solid rgba(255, 255, 255, 0.1); 
+                    font-size: 0.85rem; 
+                    color: rgba(255, 255, 255, 0.6);
+                "></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // API健全性チェック
+        async function checkAPIHealth() {
+            try {
+                const response = await fetch('/api/health');
+                if (!response.ok) {
+                    console.error('API health check failed');
+                }
+            } catch (error) {
+                console.error('API not available:', error);
+            }
+        }
+
+        document.getElementById('apiForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const submitBtn = document.getElementById('submitBtn');
+            const loading = document.getElementById('loading');
+            const result = document.getElementById('result');
+            
+            // 現在のタブを確認
+            const isListSearch = document.getElementById('listTab').classList.contains('active');
+            
+            let requestData = {};
+            let endpoint = '';
+            
+            if (isListSearch) {
+                const listId = document.getElementById('listId').value;
+                const sinceTime = document.getElementById('sinceTime').value;
+                const untilTime = document.getElementById('untilTime').value;
+                const includeReplies = document.getElementById('includeReplies').value;
+                
+                if (!listId) {
+                    alert('List IDを入力してください');
+                    return;
+                }
+                
+                requestData = { 
+                    listId,
+                    ...(sinceTime && { sinceTime: new Date(sinceTime).getTime() / 1000 }),
+                    ...(untilTime && { untilTime: new Date(untilTime).getTime() / 1000 }),
+                    includeReplies: includeReplies === 'true'
+                };
+                endpoint = '/api/twitter/list';
+            } else {
+                const query = document.getElementById('query').value;
+                if (!query) {
+                    alert('検索クエリを入力してください');
+                    return;
+                }
+                requestData = { query };
+                endpoint = '/api/twitter/search';
+            }
+            
+            // UI状態をローディングに変更
+            submitBtn.disabled = true;
+            loading.style.display = 'block';
+            result.innerHTML = '';
+            result.className = '';
+            
+            try {
+                const response = await fetch(endpoint, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(requestData)
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    result.className = 'success';
+                    // ツイート件数をカウント
+                    let tweetCount = 0;
+                    let pagesInfo = '';
+                    
+                    if (data && data.tweets && Array.isArray(data.tweets)) {
+                        tweetCount = data.tweets.length;
+                    }
+                    
+                    // リスト検索の場合、ページ情報を追加
+                    if (isListSearch && data.totalTweets !== undefined) {
+                        tweetCount = data.totalTweets;
+                        pagesInfo = `\n📄 取得ページ数: ${data.pagesRetrieved}ページ`;
+                        if (data.note) {
+                            pagesInfo += `\n📝 ${data.note}`;
+                        }
+                        
+                        // 要約ボタンを追加（リスト検索のみ）
+                        if (tweetCount > 0) {
+                            // グローバル変数に検索結果を保存
+                            window.lastListSearchResult = data;
+                            
+                            // 要約セクションを表示
+                            showSummarySection();
+                        }
+                    }
+                    
+                    const searchType = isListSearch ? 'List Search' : 'Query Search';
+                    result.textContent = `✅ ${searchType} Success (${response.status})\n`;
+                    result.textContent += `📊 取得件数: ${tweetCount}件`;
+                    result.textContent += pagesInfo;
+                    result.textContent += '\n\n';
+                    result.textContent += JSON.stringify(data, null, 2);
+                } else {
+                    result.className = 'error';
+                    result.textContent = `❌ Error (${response.status})\n\n` + JSON.stringify(data, null, 2);
+                }
+                
+            } catch (error) {
+                result.className = 'error';
+                result.textContent = `❌ Network Error\n\n${error.message}`;
+            } finally {
+                // UI状態を元に戻す
+                submitBtn.disabled = false;
+                loading.style.display = 'none';
+            }
+        });
+        
+        function setQuery(query) {
+            document.getElementById('query').value = query;
+        }
+        
+        function switchTab(tabType) {
+            // タブボタンの状態を更新
+            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+            
+            if (tabType === 'query') {
+                document.querySelector('.tab-btn:first-child').classList.add('active');
+                document.getElementById('queryTab').classList.add('active');
+            } else if (tabType === 'list') {
+                document.querySelector('.tab-btn:last-child').classList.add('active');
+                document.getElementById('listTab').classList.add('active');
+            }
+        }
+        
+        function setQuickFilter(type) {
+            const now = new Date();
+            const sinceTimeInput = document.getElementById('sinceTime');
+            const untilTimeInput = document.getElementById('untilTime');
+            
+            if (type === 'clear') {
+                sinceTimeInput.value = '';
+                untilTimeInput.value = '';
+                return;
+            }
+            
+            let sinceTime;
+            switch (type) {
+                case '1hour':
+                    sinceTime = new Date(now.getTime() - 60 * 60 * 1000);
+                    break;
+                case '24hours':
+                    sinceTime = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+                    break;
+                case '7days':
+                    sinceTime = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+                    break;
+            }
+            
+            if (sinceTime) {
+                // datetime-local形式に変換（YYYY-MM-DDTHH:mm）
+                const formatDateTime = (date) => {
+                    const year = date.getFullYear();
+                    const month = String(date.getMonth() + 1).padStart(2, '0');
+                    const day = String(date.getDate()).padStart(2, '0');
+                    const hours = String(date.getHours()).padStart(2, '0');
+                    const minutes = String(date.getMinutes()).padStart(2, '0');
+                    return `${year}-${month}-${day}T${hours}:${minutes}`;
+                };
+                
+                sinceTimeInput.value = formatDateTime(sinceTime);
+                untilTimeInput.value = formatDateTime(now);
+            }
+        }
+        
+        // 要約セクション表示
+        function showSummarySection() {
+            document.getElementById('summarySection').style.display = 'block';
+            // 前回の要約結果をクリア
+            document.getElementById('summaryResult').style.display = 'none';
+            document.getElementById('summaryLoading').style.display = 'none';
+        }
+
+        // 要約生成
+        async function generateSummary() {
+            if (!window.lastListSearchResult || !window.lastListSearchResult.tweets) {
+                alert('要約するツイートがありません。まずリスト検索を実行してください。');
+                return;
+            }
+
+            const summaryType = document.getElementById('summaryType').value;
+            const summaryBtn = document.getElementById('summaryBtn');
+            const summaryLoading = document.getElementById('summaryLoading');
+            const summaryResult = document.getElementById('summaryResult');
+            const summaryContent = document.getElementById('summaryContent');
+            const summaryMeta = document.getElementById('summaryMeta');
+
+            // UI状態をローディングに変更
+            summaryBtn.disabled = true;
+            summaryLoading.style.display = 'block';
+            summaryResult.style.display = 'none';
+
+            try {
+                // ツイートデータを軽量化（テキストと基本情報のみ）
+                const lightweightTweets = window.lastListSearchResult.tweets.map(tweet => ({
+                    text: tweet.text || tweet.content || '',
+                    user: tweet.user ? { screen_name: tweet.user.screen_name } : null,
+                    created_at: tweet.created_at || tweet.date || '',
+                    author: tweet.author || ''
+                }));
+
+                const response = await fetch('/api/twitter/summarize', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        tweets: lightweightTweets,
+                        summaryType: summaryType
+                    })
+                });
+
+                const data = await response.json();
+
+                if (response.ok && data.success) {
+                    // 要約結果を表示
+                    summaryContent.textContent = data.summary;
+                    summaryMeta.innerHTML = `
+                        <strong>要約タイプ:</strong> ${getSummaryTypeLabel(data.summaryType)}<br>
+                        <strong>対象ツイート数:</strong> ${data.tweetCount}件<br>
+                        <strong>使用モデル:</strong> ${data.model}<br>
+                        <strong>使用トークン数:</strong> ${data.tokensUsed.total_tokens} tokens
+                    `;
+                    summaryResult.style.display = 'block';
+                } else {
+                    // エラー表示
+                    summaryContent.textContent = `❌ 要約生成に失敗しました\n\nエラー: ${data.error?.message || 'Unknown error'}`;
+                    summaryContent.style.background = 'rgba(255, 0, 68, 0.1)';
+                    summaryContent.style.borderColor = 'rgba(255, 0, 68, 0.3)';
+                    summaryMeta.innerHTML = '';
+                    summaryResult.style.display = 'block';
+                }
+
+            } catch (error) {
+                // ネットワークエラー
+                summaryContent.textContent = `❌ ネットワークエラー\n\n${error.message}`;
+                summaryContent.style.background = 'rgba(255, 0, 68, 0.1)';
+                summaryContent.style.borderColor = 'rgba(255, 0, 68, 0.3)';
+                summaryMeta.innerHTML = '';
+                summaryResult.style.display = 'block';
+            } finally {
+                // UI状態を元に戻す
+                summaryBtn.disabled = false;
+                summaryLoading.style.display = 'none';
+            }
+        }
+
+        // 要約タイプのラベル取得
+        function getSummaryTypeLabel(type) {
+            const labels = {
+                'brief': '簡潔な要約',
+                'detailed': '詳細な分析',
+                'trends': 'トレンド分析',
+                'sentiment': '感情分析'
+            };
+            return labels[type] || type;
+        }
+        
+        // ページロード時にAPI健全性チェック
+        window.addEventListener('DOMContentLoaded', checkAPIHealth);
+    </script>
+</body>
+</html>

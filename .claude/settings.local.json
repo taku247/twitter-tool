@@ -1,0 +1,21 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:twitterapi.io)",
+      "WebFetch(domain:docs.twitterapi.io)",
+      "WebFetch(domain:alphaminer-olive.vercel.app)",
+      "Bash(open:*)",
+      "Bash(mkdir:*)",
+      "Bash(yarn init:*)",
+      "Bash(yarn add express dotenv cors axios)",
+      "Bash(yarn add:*)",
+      "Bash(yarn dev)",
+      "Bash(node server.js)",
+      "Bash(lsof:*)",
+      "Bash(PORT=3001 node server.js)",
+      "Bash(pkill:*)",
+      "Bash(PORT=3002 node server.js)"
+    ],
+    "deny": []
+  }
+}

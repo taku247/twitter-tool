@@ -1,0 +1,904 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KaitoTweet - AI Tweet Analyzer</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
+            background: linear-gradient(135deg, #0c0c0c 0%, #1a1a1a 100%);
+            min-height: 100vh;
+            color: #ffffff;
+            line-height: 1.6;
+        }
+        
+        .header {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 1rem 0;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+        
+        .nav {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .logo {
+            font-size: 1.5rem;
+            font-weight: 700;
+            background: linear-gradient(45deg, #00d4ff, #0099cc);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        .nav-links {
+            display: flex;
+            gap: 2rem;
+            list-style: none;
+        }
+        
+        .nav-link {
+            color: rgba(255, 255, 255, 0.7);
+            text-decoration: none;
+            font-weight: 500;
+            transition: color 0.3s ease;
+        }
+        
+        .nav-link:hover {
+            color: #00d4ff;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 3rem 2rem;
+        }
+        
+        .hero {
+            text-align: center;
+            margin-bottom: 4rem;
+        }
+        
+        .hero h1 {
+            font-size: 3rem;
+            font-weight: 800;
+            margin-bottom: 1rem;
+            background: linear-gradient(45deg, #00d4ff, #ffffff, #0099cc);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        .hero p {
+            font-size: 1.2rem;
+            color: rgba(255, 255, 255, 0.6);
+            max-width: 600px;
+            margin: 0 auto;
+        }
+        
+        .card {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            padding: 2rem;
+            margin-bottom: 2rem;
+            transition: all 0.3s ease;
+        }
+        
+        .card:hover {
+            transform: translateY(-5px);
+            background: rgba(255, 255, 255, 0.08);
+            border-color: rgba(0, 212, 255, 0.3);
+        }
+        
+        .card h3 {
+            color: #00d4ff;
+            margin-bottom: 1rem;
+            font-size: 1.3rem;
+        }
+        
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 600;
+            color: rgba(255, 255, 255, 0.8);
+        }
+        
+        input[type="text"] {
+            width: 100%;
+            padding: 0.8rem 1rem;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 8px;
+            color: #ffffff;
+            font-size: 1rem;
+            transition: all 0.3s ease;
+        }
+        
+        input[type="text"]:focus {
+            outline: none;
+            border-color: #00d4ff;
+            background: rgba(255, 255, 255, 0.1);
+            box-shadow: 0 0 0 3px rgba(0, 212, 255, 0.1);
+        }
+        
+        input::placeholder {
+            color: rgba(255, 255, 255, 0.4);
+        }
+        
+        textarea {
+            width: 100%;
+            min-height: 150px;
+            padding: 1rem;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 8px;
+            color: #ffffff;
+            font-size: 1rem;
+            font-family: inherit;
+            resize: vertical;
+            transition: all 0.3s ease;
+        }
+        
+        textarea:focus {
+            outline: none;
+            border-color: #00d4ff;
+            background: rgba(255, 255, 255, 0.1);
+            box-shadow: 0 0 0 3px rgba(0, 212, 255, 0.1);
+        }
+        
+        button {
+            background: linear-gradient(45deg, #00d4ff, #0099cc);
+            color: white;
+            padding: 0.8rem 2rem;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1rem;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(0, 212, 255, 0.3);
+        }
+        
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+        
+        .spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(0, 212, 255, 0.3);
+            border-radius: 50%;
+            border-top-color: #00d4ff;
+            animation: spin 1s ease-in-out infinite;
+            margin-right: 10px;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        .analysis-section {
+            display: none;
+        }
+        
+        .prompt-section {
+            background: rgba(0, 212, 255, 0.05);
+            border: 1px solid rgba(0, 212, 255, 0.2);
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+        
+        .tweets-section {
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+        
+        .result-section {
+            background: rgba(0, 255, 136, 0.1);
+            border: 1px solid rgba(0, 255, 136, 0.3);
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin-top: 1.5rem;
+            white-space: pre-wrap;
+            line-height: 1.6;
+            display: none;
+        }
+        
+        .error-section {
+            background: rgba(255, 0, 68, 0.1);
+            border: 1px solid rgba(255, 0, 68, 0.3);
+            color: #ff0044;
+        }
+        
+        .loading {
+            display: none;
+            text-align: center;
+            color: #00d4ff;
+            margin: 2rem 0;
+        }
+        
+        .tweet-item {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            padding: 1rem;
+            margin-bottom: 0.8rem;
+            transition: all 0.3s ease;
+        }
+        
+        .tweet-item:hover {
+            background: rgba(255, 255, 255, 0.05);
+            border-color: rgba(0, 212, 255, 0.3);
+        }
+        
+        .tweet-item.selected {
+            background: rgba(0, 212, 255, 0.1);
+            border-color: rgba(0, 212, 255, 0.4);
+        }
+        
+        .tweet-header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 0.5rem;
+        }
+        
+        .tweet-checkbox {
+            margin-right: 0.8rem;
+            transform: scale(1.2);
+        }
+        
+        .tweet-author {
+            font-weight: 600;
+            color: #00d4ff;
+            margin-right: 0.5rem;
+        }
+        
+        .tweet-date {
+            color: rgba(255, 255, 255, 0.5);
+            font-size: 0.85rem;
+        }
+        
+        .tweet-content {
+            margin-left: 2rem;
+            line-height: 1.5;
+            color: rgba(255, 255, 255, 0.9);
+        }
+        
+        @media (max-width: 768px) {
+            .hero h1 {
+                font-size: 2rem;
+            }
+            
+            .nav {
+                padding: 0 1rem;
+            }
+            
+            .container {
+                padding: 2rem 1rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <nav class="nav">
+            <div class="logo">KaitoTweet</div>
+            <ul class="nav-links">
+                <li><a href="/" class="nav-link">Dashboard</a></li>
+                <li><a href="/test.html" class="nav-link">API Test</a></li>
+                <li><a href="/kaitotweet.html" class="nav-link">KaitoTweet</a></li>
+                <li><a href="#" class="nav-link">Docs</a></li>
+            </ul>
+        </nav>
+    </header>
+    
+    <div class="container">
+        <div class="hero">
+            <h1>KaitoTweet</h1>
+            <p>AIを使ったツイート分析・解析ツール</p>
+        </div>
+        
+        <!-- 検索セクション -->
+        <div class="card">
+            <h3>🔍 ツイート検索</h3>
+            <form id="searchForm">
+                <div class="form-group">
+                    <label for="searchQuery">検索キーワード</label>
+                    <input type="text" id="searchQuery" placeholder="検索したいキーワードを入力" required>
+                </div>
+                <button type="submit" id="searchBtn">
+                    <span id="searchBtnText">検索実行</span>
+                </button>
+            </form>
+            
+            <div id="searchLoading" class="loading">
+                <div class="spinner"></div>
+                <p>ツイートを検索中...</p>
+            </div>
+        </div>
+        
+        <!-- 手動ツイート追加セクション -->
+        <div class="card">
+            <h3>📎 ツイートリンク追加</h3>
+            <form id="addTweetForm">
+                <div class="form-group">
+                    <label for="tweetUrl">ツイートURL</label>
+                    <input type="text" id="tweetUrl" placeholder="https://twitter.com/username/status/1234567890" required>
+                    <small style="color: rgba(255, 255, 255, 0.5); font-size: 0.85rem;">
+                        Twitter/Xのツイートリンクを貼り付けてください
+                    </small>
+                </div>
+                <button type="submit" id="addTweetBtn">
+                    <span id="addTweetBtnText">ツイートを追加</span>
+                </button>
+            </form>
+            
+            <div id="addTweetLoading" class="loading">
+                <div class="spinner"></div>
+                <p>ツイートを取得中...</p>
+            </div>
+            
+            <!-- 手動追加ツイート一覧 -->
+            <div id="manualTweetsSection" style="display: none; margin-top: 1.5rem;">
+                <h4 style="color: #00d4ff; margin-bottom: 1rem;">追加されたツイート</h4>
+                <div id="manualTweetsList" style="max-height: 200px; overflow-y: auto; border: 1px solid rgba(255, 255, 255, 0.2); border-radius: 8px; padding: 1rem;">
+                </div>
+                <button type="button" onclick="clearManualTweets()" style="margin-top: 1rem; font-size: 0.8rem; padding: 0.4rem 0.8rem;">
+                    全て削除
+                </button>
+            </div>
+        </div>
+        
+        <!-- 分析セクション -->
+        <div id="analysisSection" class="analysis-section">
+            <div class="card">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                    <h3 style="margin: 0;">🤖 AI分析</h3>
+                    <div style="display: flex; align-items: center; gap: 1rem;">
+                        <div style="color: rgba(255, 255, 255, 0.6); font-size: 0.9rem;">
+                            <span id="selectedCountTop">選択: 0件</span> / <span id="totalCountTop">全: 0件</span>
+                        </div>
+                        <button type="button" onclick="executeAI()" id="aiBtnTop" style="font-size: 0.9rem; padding: 0.6rem 1.2rem;">
+                            <span id="aiBtnTopText">🚀 ChatGPT実行</span>
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- 結果表示 -->
+                <div id="aiResult" class="result-section"></div>
+                
+                <!-- ChatGPTへの命令入力 -->
+                <div class="prompt-section">
+                    <div class="form-group">
+                        <label for="aiPrompt">ChatGPTへの命令</label>
+                        <textarea id="aiPrompt" placeholder="例: 以下のツイートを分析して、主要なトレンドと感情を教えてください。"></textarea>
+                    </div>
+                </div>
+                
+                <!-- ツイート一覧（選択式） -->
+                <div class="tweets-section">
+                    <div class="form-group">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                            <label>ツイート選択</label>
+                            <div>
+                                <button type="button" onclick="selectAllTweets()" style="font-size: 0.8rem; padding: 0.4rem 0.8rem; margin-right: 0.5rem;">全選択</button>
+                                <button type="button" onclick="deselectAllTweets()" style="font-size: 0.8rem; padding: 0.4rem 0.8rem;">全解除</button>
+                            </div>
+                        </div>
+                        <div id="tweetsList" class="tweets-list" style="max-height: 600px; overflow-y: auto; border: 1px solid rgba(255, 255, 255, 0.2); border-radius: 8px; padding: 1rem;">
+                            <p style="color: rgba(255, 255, 255, 0.6); text-align: center;">検索結果のツイートがここに表示されます...</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div id="aiLoading" class="loading">
+                    <div class="spinner"></div>
+                    <p>ChatGPTで分析中...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let searchResults = null;
+        let manualTweets = [];
+
+        // 検索フォームの処理
+        document.getElementById('searchForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const query = document.getElementById('searchQuery').value.trim();
+            const searchBtn = document.getElementById('searchBtn');
+            const searchLoading = document.getElementById('searchLoading');
+            
+            if (!query) {
+                alert('検索キーワードを入力してください');
+                return;
+            }
+            
+            // UI状態をローディングに変更
+            searchBtn.disabled = true;
+            searchLoading.style.display = 'block';
+            document.getElementById('analysisSection').style.display = 'none';
+            
+            try {
+                const response = await fetch('/api/twitter/search', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ query: query })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok && data.tweets && Array.isArray(data.tweets)) {
+                    searchResults = data;
+                    
+                    // デバッグ: 最初のツイートの構造を確認
+                    console.log('First tweet structure:', JSON.stringify(data.tweets[0], null, 2));
+                    
+                    displayTweets(data.tweets);
+                    showAnalysisSection();
+                } else {
+                    alert(`検索エラー: ${data.error || '不明なエラーが発生しました'}`);
+                }
+                
+            } catch (error) {
+                alert(`ネットワークエラー: ${error.message}`);
+            } finally {
+                // UI状態を元に戻す
+                searchBtn.disabled = false;
+                searchLoading.style.display = 'none';
+            }
+        });
+
+        // 手動ツイート追加フォームの処理
+        document.getElementById('addTweetForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const tweetUrl = document.getElementById('tweetUrl').value.trim();
+            const addTweetBtn = document.getElementById('addTweetBtn');
+            const addTweetLoading = document.getElementById('addTweetLoading');
+            
+            if (!tweetUrl) {
+                alert('ツイートURLを入力してください');
+                return;
+            }
+            
+            // ツイートIDを抽出
+            const tweetId = extractTweetId(tweetUrl);
+            if (!tweetId) {
+                alert('有効なツイートURLを入力してください');
+                return;
+            }
+            
+            // 重複チェック
+            if (manualTweets.some(tweet => tweet.id === tweetId)) {
+                alert('このツイートは既に追加されています');
+                return;
+            }
+            
+            // UI状態をローディングに変更
+            addTweetBtn.disabled = true;
+            addTweetLoading.style.display = 'block';
+            
+            try {
+                const response = await fetch('/api/twitter/tweet', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ 
+                        tweetId: tweetId,
+                        tweetUrl: tweetUrl  // URLも送信して検索に使用
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok && data.tweet) {
+                    // 手動追加ツイートリストに追加
+                    const tweetData = data.tweet;
+                    tweetData.id = tweetId;
+                    tweetData.isManual = true;
+                    manualTweets.push(tweetData);
+                    
+                    // 手動追加ツイート表示を更新
+                    updateManualTweetsDisplay();
+                    
+                    // 分析セクションの表示を更新
+                    if (document.getElementById('analysisSection').style.display === 'block') {
+                        updateAnalysisSection();
+                    }
+                    
+                    // フォームをクリア
+                    document.getElementById('tweetUrl').value = '';
+                    
+                } else {
+                    alert(`ツイート取得エラー: ${data.error?.message || '不明なエラーが発生しました'}`);
+                }
+                
+            } catch (error) {
+                alert(`ネットワークエラー: ${error.message}`);
+            } finally {
+                // UI状態を元に戻す
+                addTweetBtn.disabled = false;
+                addTweetLoading.style.display = 'none';
+            }
+        });
+
+        // ツイートIDを抽出する関数
+        function extractTweetId(url) {
+            // Twitter/X URLのパターンマッチング
+            const patterns = [
+                /(?:twitter\.com|x\.com)\/(?:#!\/)?(\w+)\/status(?:es)?\/(\d+)/i,
+                /(?:twitter\.com|x\.com)\/(?:#!\/)?(\w+)\/statuses\/(\d+)/i,
+                /t\.co\/(\w+)/i // 短縮URLの場合（完全な解析は困難）
+            ];
+            
+            for (const pattern of patterns) {
+                const match = url.match(pattern);
+                if (match && match[2]) {
+                    return match[2];
+                }
+            }
+            
+            // 数字のみの場合（ツイートIDを直接入力した場合）
+            if (/^\d+$/.test(url)) {
+                return url;
+            }
+            
+            return null;
+        }
+
+        // 手動追加ツイート表示の更新
+        function updateManualTweetsDisplay() {
+            const manualTweetsList = document.getElementById('manualTweetsList');
+            const manualTweetsSection = document.getElementById('manualTweetsSection');
+            
+            if (manualTweets.length === 0) {
+                manualTweetsSection.style.display = 'none';
+                return;
+            }
+            
+            manualTweetsSection.style.display = 'block';
+            
+            const tweetsHTML = manualTweets.map((tweet, index) => {
+                const text = tweet.text || tweet.content || '';
+                let author = 'Unknown';
+                
+                if (tweet.author && tweet.author.userName) {
+                    author = tweet.author.userName;
+                } else if (tweet.user) {
+                    if (typeof tweet.user === 'string') {
+                        author = tweet.user;
+                    } else if (tweet.user.screen_name) {
+                        author = tweet.user.screen_name;
+                    } else if (tweet.user.username) {
+                        author = tweet.user.username;
+                    } else if (tweet.user.userName) {
+                        author = tweet.user.userName;
+                    }
+                } else if (tweet.username) {
+                    author = tweet.username;
+                }
+                
+                const date = tweet.created_at || tweet.date || '';
+                
+                return `
+                    <div class="tweet-item" style="margin-bottom: 0.8rem; position: relative;">
+                        <div class="tweet-header">
+                            <span class="tweet-author">@${author}</span>
+                            <span class="tweet-date">${date}</span>
+                            <button onclick="removeManualTweet(${index})" style="
+                                position: absolute; 
+                                right: 0.5rem; 
+                                top: 0.3rem; 
+                                background: rgba(255, 0, 68, 0.2); 
+                                border: 1px solid rgba(255, 0, 68, 0.4); 
+                                color: #ff0044; 
+                                font-size: 0.7rem; 
+                                padding: 0.2rem 0.5rem; 
+                                border-radius: 4px;
+                                transform: none;
+                                box-shadow: none;
+                            ">削除</button>
+                        </div>
+                        <div class="tweet-content" style="margin-left: 0; margin-top: 0.5rem;">${text}</div>
+                    </div>
+                `;
+            }).join('');
+            
+            manualTweetsList.innerHTML = tweetsHTML;
+        }
+
+        // 手動ツイートを削除
+        function removeManualTweet(index) {
+            manualTweets.splice(index, 1);
+            updateManualTweetsDisplay();
+            
+            // 分析セクションも更新
+            if (document.getElementById('analysisSection').style.display === 'block') {
+                updateAnalysisSection();
+            }
+        }
+
+        // 手動ツイートを全て削除
+        function clearManualTweets() {
+            if (manualTweets.length === 0) return;
+            
+            if (confirm('追加したツイートを全て削除しますか？')) {
+                manualTweets = [];
+                updateManualTweetsDisplay();
+                
+                // 分析セクションも更新
+                if (document.getElementById('analysisSection').style.display === 'block') {
+                    updateAnalysisSection();
+                }
+            }
+        }
+
+        // ツイートデータを表示（統合版）
+        function displayTweets(tweets) {
+            // 検索結果と手動追加ツイートを統合
+            const allTweets = [...tweets, ...manualTweets];
+            updateAnalysisSection(allTweets);
+        }
+
+        // 分析セクションの更新
+        function updateAnalysisSection(allTweets = null) {
+            if (!allTweets) {
+                // 検索結果と手動追加ツイートを統合
+                const searchTweets = searchResults?.tweets || [];
+                allTweets = [...searchTweets, ...manualTweets];
+            }
+            
+            const tweetsList = document.getElementById('tweetsList');
+            const totalCountTop = document.getElementById('totalCountTop');
+            
+            // ツイート一覧を生成
+            const tweetsHTML = allTweets.map((tweet, index) => {
+                const text = tweet.text || tweet.content || '';
+                
+                // ユーザー名の取得
+                let author = 'Unknown';
+                if (tweet.author && tweet.author.userName) {
+                    author = tweet.author.userName;
+                } else if (tweet.user) {
+                    if (typeof tweet.user === 'string') {
+                        author = tweet.user;
+                    } else if (tweet.user.screen_name) {
+                        author = tweet.user.screen_name;
+                    } else if (tweet.user.username) {
+                        author = tweet.user.username;
+                    } else if (tweet.user.userName) {
+                        author = tweet.user.userName;
+                    }
+                } else if (tweet.username) {
+                    author = tweet.username;
+                }
+                
+                const date = tweet.created_at || tweet.date || '';
+                const isManual = tweet.isManual || false;
+                
+                return `
+                    <div class="tweet-item" id="tweet-${index}">
+                        <div class="tweet-header">
+                            <input type="checkbox" class="tweet-checkbox" id="checkbox-${index}" 
+                                   onchange="updateSelection()" checked>
+                            <span class="tweet-author">@${author}</span>
+                            <span class="tweet-date">${date}</span>
+                            ${isManual ? '<span style="background: rgba(0, 212, 255, 0.3); color: #00d4ff; font-size: 0.7rem; padding: 0.2rem 0.4rem; border-radius: 3px; margin-left: 0.5rem;">手動追加</span>' : ''}
+                        </div>
+                        <div class="tweet-content">${text}</div>
+                    </div>
+                `;
+            }).join('');
+            
+            tweetsList.innerHTML = tweetsHTML;
+            totalCountTop.textContent = `全: ${allTweets.length}件 (検索: ${searchResults?.tweets?.length || 0}, 手動: ${manualTweets.length})`;
+            
+            // 初期状態で全選択
+            updateSelection();
+            
+            // デフォルトの命令文を設定
+            const aiPrompt = document.getElementById('aiPrompt');
+            if (!aiPrompt.value.trim()) {
+                aiPrompt.value = `以下のツイートを分析してください：
+
+1. 主要なトピックと傾向
+2. 感情の分析
+3. 注目すべき意見や発言
+4. 全体的な要約
+
+分析対象のツイート:`;
+            }
+        }
+
+        // 選択状態の更新
+        function updateSelection() {
+            const checkboxes = document.querySelectorAll('.tweet-checkbox');
+            const selectedCountTop = document.getElementById('selectedCountTop');
+            let count = 0;
+            
+            checkboxes.forEach((checkbox, index) => {
+                const tweetItem = document.getElementById(`tweet-${index}`);
+                if (checkbox.checked) {
+                    count++;
+                    tweetItem.classList.add('selected');
+                } else {
+                    tweetItem.classList.remove('selected');
+                }
+            });
+            
+            selectedCountTop.textContent = `選択: ${count}件`;
+        }
+
+        // 全選択
+        function selectAllTweets() {
+            const checkboxes = document.querySelectorAll('.tweet-checkbox');
+            checkboxes.forEach(checkbox => {
+                checkbox.checked = true;
+            });
+            updateSelection();
+        }
+
+        // 全解除
+        function deselectAllTweets() {
+            const checkboxes = document.querySelectorAll('.tweet-checkbox');
+            checkboxes.forEach(checkbox => {
+                checkbox.checked = false;
+            });
+            updateSelection();
+        }
+
+        // 選択されたツイートのテキストを取得（統合版）
+        function getSelectedTweetsText() {
+            const checkboxes = document.querySelectorAll('.tweet-checkbox');
+            const selectedTweets = [];
+            
+            // 検索結果と手動追加ツイートを統合
+            const allTweets = [...(searchResults?.tweets || []), ...manualTweets];
+            
+            checkboxes.forEach((checkbox, index) => {
+                if (checkbox.checked && allTweets[index]) {
+                    const tweet = allTweets[index];
+                    const text = tweet.text || tweet.content || '';
+                    
+                    // ユーザー名の取得（displayTweetsと同じロジック）
+                    let author = 'Unknown';
+                    if (tweet.author && tweet.author.userName) {
+                        author = tweet.author.userName;
+                    } else if (tweet.user) {
+                        if (typeof tweet.user === 'string') {
+                            author = tweet.user;
+                        } else if (tweet.user.screen_name) {
+                            author = tweet.user.screen_name;
+                        } else if (tweet.user.username) {
+                            author = tweet.user.username;
+                        } else if (tweet.user.userName) {
+                            author = tweet.user.userName;
+                        }
+                    } else if (tweet.username) {
+                        author = tweet.username;
+                    }
+                    
+                    const date = tweet.created_at || tweet.date || '';
+                    selectedTweets.push(`${selectedTweets.length + 1}. @${author} (${date}):\n${text}`);
+                }
+            });
+            
+            return selectedTweets.join('\n\n');
+        }
+
+        // 分析セクションを表示（統合版）
+        function showAnalysisSection() {
+            document.getElementById('analysisSection').style.display = 'block';
+            // 結果をクリア
+            document.getElementById('aiResult').style.display = 'none';
+            // 統合データで更新
+            updateAnalysisSection();
+        }
+
+        // AI分析実行
+        async function executeAI() {
+            const aiPrompt = document.getElementById('aiPrompt').value.trim();
+            const selectedTweetsText = getSelectedTweetsText();
+            const aiBtnTop = document.getElementById('aiBtnTop');
+            const aiLoading = document.getElementById('aiLoading');
+            const aiResult = document.getElementById('aiResult');
+            
+            if (!aiPrompt) {
+                alert('ChatGPTへの命令を入力してください');
+                return;
+            }
+            
+            if (!selectedTweetsText) {
+                alert('分析するツイートを選択してください');
+                return;
+            }
+            
+            // UI状態をローディングに変更
+            aiBtnTop.disabled = true;
+            aiLoading.style.display = 'block';
+            aiResult.style.display = 'none';
+            
+            try {
+                // ChatGPTに送信するメッセージを組み立て
+                const fullPrompt = `${aiPrompt}\n\n${selectedTweetsText}`;
+                
+                const response = await fetch('/api/openai/test', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ 
+                        message: fullPrompt
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok && data.success) {
+                    // 成功時の表示
+                    aiResult.className = 'result-section';
+                    aiResult.textContent = data.response;
+                    aiResult.style.display = 'block';
+                } else {
+                    // エラー時の表示
+                    aiResult.className = 'result-section error-section';
+                    aiResult.textContent = `❌ 分析エラー\n\n${data.error?.message || '不明なエラーが発生しました'}`;
+                    aiResult.style.display = 'block';
+                }
+                
+            } catch (error) {
+                // ネットワークエラー
+                aiResult.className = 'result-section error-section';
+                aiResult.textContent = `❌ ネットワークエラー\n\n${error.message}`;
+                aiResult.style.display = 'block';
+            } finally {
+                // UI状態を元に戻す
+                aiBtnTop.disabled = false;
+                aiLoading.style.display = 'none';
+            }
+        }
+    </script>
+</body>
+</html>
