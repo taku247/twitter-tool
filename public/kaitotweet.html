@@ -506,37 +506,6 @@
             </div>
         </div>
         
-        <!-- 手動ツイート追加セクション -->
-        <div class="card">
-            <h3>📎 ツイートリンク追加</h3>
-            <form id="addTweetForm">
-                <div class="form-group">
-                    <label for="tweetUrl">ツイートURL</label>
-                    <input type="text" id="tweetUrl" placeholder="https://twitter.com/username/status/1234567890" required>
-                    <small style="color: rgba(255, 255, 255, 0.5); font-size: 0.85rem;">
-                        Twitter/Xのツイートリンクを貼り付けてください
-                    </small>
-                </div>
-                <button type="submit" id="addTweetBtn">
-                    <span id="addTweetBtnText">ツイートを追加</span>
-                </button>
-            </form>
-            
-            <div id="addTweetLoading" class="loading">
-                <div class="spinner"></div>
-                <p>ツイートを取得中...</p>
-            </div>
-            
-            <!-- 手動追加ツイート一覧 -->
-            <div id="manualTweetsSection" style="display: none; margin-top: 1.5rem;">
-                <h4 style="color: #00d4ff; margin-bottom: 1rem;">追加されたツイート</h4>
-                <div id="manualTweetsList" style="max-height: 200px; overflow-y: auto; border: 1px solid rgba(255, 255, 255, 0.2); border-radius: 8px; padding: 1rem;">
-                </div>
-                <button type="button" onclick="clearManualTweets()" style="margin-top: 1rem; font-size: 0.8rem; padding: 0.4rem 0.8rem;">
-                    全て削除
-                </button>
-            </div>
-        </div>
         
         <!-- 分析セクション -->
         <div id="analysisSection" class="analysis-section">
@@ -561,6 +530,43 @@
                     <div class="form-group">
                         <label for="aiPrompt">ChatGPTへの命令</label>
                         <textarea id="aiPrompt" placeholder="例: 以下のツイートを分析して、主要なトレンドと感情を教えてください。"></textarea>
+                    </div>
+                </div>
+                
+                <!-- 手動ツイート追加セクション -->
+                <div class="card" style="background: rgba(255, 255, 255, 0.03); margin: 1.5rem 0;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; cursor: pointer;" onclick="toggleManualTweetSection()">
+                        <h3 style="margin: 0;">📎 ツイートリンク追加</h3>
+                        <span id="manualTweetToggle" style="color: rgba(255, 255, 255, 0.6); font-size: 0.9rem;">▼ 展開</span>
+                    </div>
+                    <div id="manualTweetContent" style="display: none; margin-top: 1rem;">
+                        <form id="addTweetForm">
+                            <div class="form-group">
+                                <label for="tweetUrl">ツイートURL</label>
+                                <input type="text" id="tweetUrl" placeholder="https://twitter.com/username/status/1234567890" required>
+                                <small style="color: rgba(255, 255, 255, 0.5); font-size: 0.85rem;">
+                                    Twitter/Xのツイートリンクを貼り付けてください
+                                </small>
+                            </div>
+                            <button type="submit" id="addTweetBtn">
+                                <span id="addTweetBtnText">ツイートを追加</span>
+                            </button>
+                        </form>
+                        
+                        <div id="addTweetLoading" class="loading">
+                            <div class="spinner"></div>
+                            <p>ツイートを取得中...</p>
+                        </div>
+                        
+                        <!-- 手動追加ツイート一覧 -->
+                        <div id="manualTweetsSection" style="display: none; margin-top: 1.5rem;">
+                            <h4 style="color: #00d4ff; margin-bottom: 1rem;">追加されたツイート</h4>
+                            <div id="manualTweetsList" style="max-height: 200px; overflow-y: auto; border: 1px solid rgba(255, 255, 255, 0.2); border-radius: 8px; padding: 1rem;">
+                            </div>
+                            <button type="button" onclick="clearManualTweets()" style="margin-top: 1rem; font-size: 0.8rem; padding: 0.4rem 0.8rem;">
+                                全て削除
+                            </button>
+                        </div>
                     </div>
                 </div>
                 
@@ -1254,6 +1260,20 @@
             
             // 新しいタブでツイートを開く
             window.open(url, '_blank', 'noopener,noreferrer');
+        }
+        
+        // 手動ツイート追加セクションの開閉切り替え
+        function toggleManualTweetSection() {
+            const content = document.getElementById('manualTweetContent');
+            const toggle = document.getElementById('manualTweetToggle');
+            
+            if (content.style.display === 'none') {
+                content.style.display = 'block';
+                toggle.textContent = '▲ 閉じる';
+            } else {
+                content.style.display = 'none';
+                toggle.textContent = '▼ 展開';
+            }
         }
     </script>
 </body>
