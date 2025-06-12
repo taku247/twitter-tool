@@ -399,7 +399,10 @@
                     
                     <!-- 日時フィルター -->
                     <div style="margin-top: 1rem;">
-                        <div style="font-size: 0.85rem; color: rgba(255, 255, 255, 0.7); margin-bottom: 0.5rem;">日時フィルター:</div>
+                        <div style="font-size: 0.85rem; color: rgba(255, 255, 255, 0.7); margin-bottom: 0.5rem;">
+                            日時フィルター: 
+                            <span style="font-size: 0.75rem; color: rgba(255, 255, 255, 0.5);">（日本時間で入力）</span>
+                        </div>
                         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.8rem;">
                             <div>
                                 <label for="sinceDate" style="font-size: 0.8rem; color: rgba(255, 255, 255, 0.6);">開始日時</label>
@@ -774,13 +777,14 @@
                     author = tweet.username;
                 }
                 
-                const date = tweet.created_at || tweet.date || '';
+                const rawDate = tweet.created_at || tweet.date || '';
+                const formattedDate = formatTweetDate(rawDate);
                 
                 return `
                     <div class="tweet-item" style="margin-bottom: 0.8rem; position: relative;">
                         <div class="tweet-header">
                             <span class="tweet-author">@${author}</span>
-                            <span class="tweet-date">${date}</span>
+                            <span class="tweet-date" style="font-size: 0.8rem; color: rgba(255, 255, 255, 0.6);">${formattedDate}</span>
                             <button onclick="removeManualTweet(${index})" style="
                                 position: absolute; 
                                 right: 0.5rem; 
@@ -871,15 +875,18 @@
             return baseQuery + ' ' + allFilters.join(' ');
         }
         
-        // 日時をTwitter検索形式に変換
+        // 日時をTwitter検索形式に変換（日本時間→UTC変換）
         function formatDateForTwitter(datetimeLocal) {
-            const date = new Date(datetimeLocal);
-            const year = date.getFullYear();
-            const month = String(date.getMonth() + 1).padStart(2, '0');
-            const day = String(date.getDate()).padStart(2, '0');
-            const hours = String(date.getHours()).padStart(2, '0');
-            const minutes = String(date.getMinutes()).padStart(2, '0');
-            const seconds = String(date.getSeconds()).padStart(2, '0');
+            const localDate = new Date(datetimeLocal);
+            // 日本時間（JST）をUTCに変換（-9時間）
+            const utcDate = new Date(localDate.getTime() - (9 * 60 * 60 * 1000));
+            
+            const year = utcDate.getFullYear();
+            const month = String(utcDate.getMonth() + 1).padStart(2, '0');
+            const day = String(utcDate.getDate()).padStart(2, '0');
+            const hours = String(utcDate.getHours()).padStart(2, '0');
+            const minutes = String(utcDate.getMinutes()).padStart(2, '0');
+            const seconds = String(utcDate.getSeconds()).padStart(2, '0');
             
             return `${year}-${month}-${day}_${hours}:${minutes}:${seconds}_UTC`;
         }
@@ -952,6 +959,48 @@
             return `${year}-${month}-${day}T${hours}:${minutes}`;
         }
         
+        // ツイート日時を日本時間でフォーマット
+        function formatTweetDate(dateString) {
+            if (!dateString) return '';
+            
+            try {
+                // 各種日時フォーマットに対応
+                let date;
+                
+                // ISO 8601形式 (例: 2024-12-12T10:30:00.000Z)
+                if (dateString.includes('T') && dateString.includes('Z')) {
+                    date = new Date(dateString);
+                }
+                // Twitter標準形式 (例: Wed Dec 12 10:30:00 +0000 2024)
+                else if (dateString.includes('+0000')) {
+                    date = new Date(dateString);
+                }
+                // その他の形式
+                else {
+                    date = new Date(dateString);
+                }
+                
+                // 無効な日付の場合は元の文字列を返す
+                if (isNaN(date.getTime())) {
+                    return dateString;
+                }
+                
+                // 日本時間に変換してフォーマット
+                const jstDate = new Date(date.getTime() + (9 * 60 * 60 * 1000)); // UTC+9
+                
+                const year = jstDate.getUTCFullYear();
+                const month = String(jstDate.getUTCMonth() + 1).padStart(2, '0');
+                const day = String(jstDate.getUTCDate()).padStart(2, '0');
+                const hours = String(jstDate.getUTCHours()).padStart(2, '0');
+                const minutes = String(jstDate.getUTCMinutes()).padStart(2, '0');
+                
+                return `${year}/${month}/${day} ${hours}:${minutes} JST`;
+            } catch (error) {
+                console.error('Date formatting error:', error, dateString);
+                return dateString;
+            }
+        }
+        
         // 検索入力欄の変更を監視
         document.getElementById('searchQuery').addEventListener('input', updateSearchPreview);
 
@@ -995,7 +1044,8 @@
                     author = tweet.username;
                 }
                 
-                const date = tweet.created_at || tweet.date || '';
+                const rawDate = tweet.created_at || tweet.date || '';
+                const formattedDate = formatTweetDate(rawDate);
                 const isManual = tweet.isManual || false;
                 
                 return `
@@ -1004,7 +1054,7 @@
                             <input type="checkbox" class="tweet-checkbox" id="checkbox-${index}" 
                                    onchange="updateSelection()" checked>
                             <span class="tweet-author">@${author}</span>
-                            <span class="tweet-date">${date}</span>
+                            <span class="tweet-date" style="font-size: 0.8rem; color: rgba(255, 255, 255, 0.6);">${formattedDate}</span>
                             ${isManual ? '<span style="background: rgba(0, 212, 255, 0.3); color: #00d4ff; font-size: 0.7rem; padding: 0.2rem 0.4rem; border-radius: 3px; margin-left: 0.5rem;">手動追加</span>' : ''}
                         </div>
                         <div class="tweet-content">${text}</div>
