@@ -306,6 +306,12 @@
             box-shadow: none !important;
         }
         
+        .quick-filter-btn.active {
+            background: rgba(0, 212, 255, 0.3) !important;
+            border-color: rgba(0, 212, 255, 0.6) !important;
+            color: #ffffff !important;
+        }
+        
         @media (max-width: 768px) {
             .hero h1 {
                 font-size: 2rem;
@@ -352,7 +358,7 @@
                     <div style="margin-top: 0.8rem;">
                         <div style="font-size: 0.85rem; color: rgba(255, 255, 255, 0.7); margin-bottom: 0.5rem;">クイックフィルター:</div>
                         <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
-                            <button type="button" class="quick-filter-btn" onclick="addQuickFilter('lang:ja')" style="
+                            <button type="button" class="quick-filter-btn" id="filter-lang-ja" onclick="toggleFilter('lang:ja', '🇯🇵 日本語')" style="
                                 background: rgba(0, 212, 255, 0.1); 
                                 border: 1px solid rgba(0, 212, 255, 0.3); 
                                 color: #00d4ff; 
@@ -364,7 +370,7 @@
                                 transform: none;
                                 box-shadow: none;
                             ">🇯🇵 日本語</button>
-                            <button type="button" class="quick-filter-btn" onclick="addQuickFilter('lang:en')" style="
+                            <button type="button" class="quick-filter-btn" id="filter-lang-en" onclick="toggleFilter('lang:en', '🇺🇸 英語')" style="
                                 background: rgba(0, 212, 255, 0.1); 
                                 border: 1px solid rgba(0, 212, 255, 0.3); 
                                 color: #00d4ff; 
@@ -376,7 +382,7 @@
                                 transform: none;
                                 box-shadow: none;
                             ">🇺🇸 英語</button>
-                            <button type="button" class="quick-filter-btn" onclick="addQuickFilter('-is:retweet')" style="
+                            <button type="button" class="quick-filter-btn" id="filter-no-rt" onclick="toggleFilter('-is:retweet', '🚫 RT除外')" style="
                                 background: rgba(0, 212, 255, 0.1); 
                                 border: 1px solid rgba(0, 212, 255, 0.3); 
                                 color: #00d4ff; 
@@ -389,6 +395,22 @@
                                 box-shadow: none;
                             ">🚫 RT除外</button>
                         </div>
+                    </div>
+                    
+                    <!-- 実際の検索クエリ表示 -->
+                    <div id="searchPreview" style="
+                        margin-top: 1rem; 
+                        padding: 0.8rem; 
+                        background: rgba(0, 0, 0, 0.3); 
+                        border: 1px solid rgba(0, 212, 255, 0.2); 
+                        border-radius: 6px; 
+                        font-family: 'Monaco', 'Menlo', monospace; 
+                        font-size: 0.85rem; 
+                        color: #00d4ff;
+                        display: none;
+                    ">
+                        <div style="font-size: 0.75rem; color: rgba(255, 255, 255, 0.5); margin-bottom: 0.3rem;">実際の検索クエリ:</div>
+                        <div id="searchPreviewText"></div>
                     </div>
                 </div>
                 <button type="submit" id="searchBtn">
@@ -487,19 +509,23 @@
     <script>
         let searchResults = null;
         let manualTweets = [];
+        let selectedFilters = [];
 
         // 検索フォームの処理
         document.getElementById('searchForm').addEventListener('submit', async function(e) {
             e.preventDefault();
             
-            const query = document.getElementById('searchQuery').value.trim();
+            const baseQuery = document.getElementById('searchQuery').value.trim();
             const searchBtn = document.getElementById('searchBtn');
             const searchLoading = document.getElementById('searchLoading');
             
-            if (!query) {
+            if (!baseQuery) {
                 alert('検索キーワードを入力してください');
                 return;
             }
+            
+            // フィルターと組み合わせた最終的なクエリを作成
+            const fullQuery = buildSearchQuery(baseQuery);
             
             // UI状態をローディングに変更
             searchBtn.disabled = true;
@@ -512,7 +538,7 @@
                     headers: {
                         'Content-Type': 'application/json'
                     },
-                    body: JSON.stringify({ query: query })
+                    body: JSON.stringify({ query: fullQuery })
                 });
                 
                 const data = await response.json();
@@ -724,27 +750,50 @@
             }
         }
 
-        // クイックフィルター追加機能
-        function addQuickFilter(filter) {
-            const searchInput = document.getElementById('searchQuery');
-            const currentValue = searchInput.value.trim();
+        // フィルター切り替え機能
+        function toggleFilter(filter, displayName) {
+            const index = selectedFilters.indexOf(filter);
+            const button = event.target;
             
-            // 既に同じフィルターが含まれている場合は追加しない
-            if (currentValue.includes(filter)) {
+            if (index > -1) {
+                // フィルターを削除
+                selectedFilters.splice(index, 1);
+                button.classList.remove('active');
+            } else {
+                // フィルターを追加
+                selectedFilters.push(filter);
+                button.classList.add('active');
+            }
+            
+            updateSearchPreview();
+        }
+        
+        // 検索クエリ作成
+        function buildSearchQuery(baseQuery) {
+            if (selectedFilters.length === 0) {
+                return baseQuery;
+            }
+            return baseQuery + ' ' + selectedFilters.join(' ');
+        }
+        
+        // 検索プレビュー更新
+        function updateSearchPreview() {
+            const baseQuery = document.getElementById('searchQuery').value.trim();
+            const preview = document.getElementById('searchPreview');
+            const previewText = document.getElementById('searchPreviewText');
+            
+            if (selectedFilters.length === 0) {
+                preview.style.display = 'none';
                 return;
             }
             
-            // 現在の値がある場合はスペースを追加してからフィルターを追加
-            if (currentValue) {
-                searchInput.value = currentValue + ' ' + filter;
-            } else {
-                searchInput.value = filter;
-            }
-            
-            // 入力欄にフォーカスを当てて、カーソルを末尾に移動
-            searchInput.focus();
-            searchInput.setSelectionRange(searchInput.value.length, searchInput.value.length);
+            const fullQuery = buildSearchQuery(baseQuery || 'キーワード');
+            previewText.textContent = fullQuery;
+            preview.style.display = 'block';
         }
+        
+        // 検索入力欄の変更を監視
+        document.getElementById('searchQuery').addEventListener('input', updateSearchPreview);
 
         // ツイートデータを表示（統合版）
         function displayTweets(tweets) {
