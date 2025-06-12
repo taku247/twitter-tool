@@ -300,6 +300,12 @@
             color: rgba(255, 255, 255, 0.9);
         }
         
+        .quick-filter-btn:hover {
+            background: rgba(0, 212, 255, 0.2) !important;
+            transform: none !important;
+            box-shadow: none !important;
+        }
+        
         @media (max-width: 768px) {
             .hero h1 {
                 font-size: 2rem;
@@ -341,6 +347,49 @@
                 <div class="form-group">
                     <label for="searchQuery">検索キーワード</label>
                     <input type="text" id="searchQuery" placeholder="検索したいキーワードを入力" required>
+                    
+                    <!-- クイックフィルター -->
+                    <div style="margin-top: 0.8rem;">
+                        <div style="font-size: 0.85rem; color: rgba(255, 255, 255, 0.7); margin-bottom: 0.5rem;">クイックフィルター:</div>
+                        <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                            <button type="button" class="quick-filter-btn" onclick="addQuickFilter('lang:ja')" style="
+                                background: rgba(0, 212, 255, 0.1); 
+                                border: 1px solid rgba(0, 212, 255, 0.3); 
+                                color: #00d4ff; 
+                                padding: 0.4rem 0.8rem; 
+                                border-radius: 6px; 
+                                cursor: pointer; 
+                                font-size: 0.8rem; 
+                                transition: all 0.3s ease;
+                                transform: none;
+                                box-shadow: none;
+                            ">🇯🇵 日本語</button>
+                            <button type="button" class="quick-filter-btn" onclick="addQuickFilter('lang:en')" style="
+                                background: rgba(0, 212, 255, 0.1); 
+                                border: 1px solid rgba(0, 212, 255, 0.3); 
+                                color: #00d4ff; 
+                                padding: 0.4rem 0.8rem; 
+                                border-radius: 6px; 
+                                cursor: pointer; 
+                                font-size: 0.8rem; 
+                                transition: all 0.3s ease;
+                                transform: none;
+                                box-shadow: none;
+                            ">🇺🇸 英語</button>
+                            <button type="button" class="quick-filter-btn" onclick="addQuickFilter('-is:retweet')" style="
+                                background: rgba(0, 212, 255, 0.1); 
+                                border: 1px solid rgba(0, 212, 255, 0.3); 
+                                color: #00d4ff; 
+                                padding: 0.4rem 0.8rem; 
+                                border-radius: 6px; 
+                                cursor: pointer; 
+                                font-size: 0.8rem; 
+                                transition: all 0.3s ease;
+                                transform: none;
+                                box-shadow: none;
+                            ">🚫 RT除外</button>
+                        </div>
+                    </div>
                 </div>
                 <button type="submit" id="searchBtn">
                     <span id="searchBtnText">検索実行</span>
@@ -673,6 +722,28 @@
                     updateAnalysisSection();
                 }
             }
+        }
+
+        // クイックフィルター追加機能
+        function addQuickFilter(filter) {
+            const searchInput = document.getElementById('searchQuery');
+            const currentValue = searchInput.value.trim();
+            
+            // 既に同じフィルターが含まれている場合は追加しない
+            if (currentValue.includes(filter)) {
+                return;
+            }
+            
+            // 現在の値がある場合はスペースを追加してからフィルターを追加
+            if (currentValue) {
+                searchInput.value = currentValue + ' ' + filter;
+            } else {
+                searchInput.value = filter;
+            }
+            
+            // 入力欄にフォーカスを当てて、カーソルを末尾に移動
+            searchInput.focus();
+            searchInput.setSelectionRange(searchInput.value.length, searchInput.value.length);
         }
 
         // ツイートデータを表示（統合版）
