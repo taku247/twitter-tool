@@ -14,7 +14,15 @@
       "Bash(lsof:*)",
       "Bash(PORT=3001 node server.js)",
       "Bash(pkill:*)",
-      "Bash(PORT=3002 node server.js)"
+      "Bash(PORT=3002 node server.js)",
+      "Bash(gh repo create:*)",
+      "Bash(git remote add:*)",
+      "Bash(git push:*)",
+      "Bash(git remote set-url:*)",
+      "Bash(git rm:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(npm start)"
     ],
     "deny": []
   }

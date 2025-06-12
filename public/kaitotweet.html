@@ -627,10 +627,6 @@
                 
                 if (response.ok && data.tweets && Array.isArray(data.tweets)) {
                     searchResults = data;
-                    
-                    // デバッグ: 最初のツイートの構造を確認
-                    console.log('First tweet structure:', JSON.stringify(data.tweets[0], null, 2));
-                    
                     displayTweets(data.tweets);
                     showAnalysisSection();
                 } else {
@@ -777,14 +773,14 @@
                     author = tweet.username;
                 }
                 
-                const rawDate = tweet.created_at || tweet.date || '';
+                const rawDate = tweet.createdAt || tweet.created_at || tweet.date || tweet.timestamp || tweet.time || tweet.created || tweet.published_at || '';
                 const formattedDate = formatTweetDate(rawDate);
                 
                 return `
                     <div class="tweet-item" style="margin-bottom: 0.8rem; position: relative;">
                         <div class="tweet-header">
                             <span class="tweet-author">@${author}</span>
-                            <span class="tweet-date" style="font-size: 0.8rem; color: rgba(255, 255, 255, 0.6);">${formattedDate}</span>
+                            <span class="tweet-date" style="font-size: 0.8rem; color: rgba(255, 255, 255, 0.6);">${formattedDate || '日時不明'}</span>
                             <button onclick="removeManualTweet(${index})" style="
                                 position: absolute; 
                                 right: 0.5rem; 
@@ -1044,7 +1040,7 @@
                     author = tweet.username;
                 }
                 
-                const rawDate = tweet.created_at || tweet.date || '';
+                const rawDate = tweet.createdAt || tweet.created_at || tweet.date || tweet.timestamp || tweet.time || tweet.created || tweet.published_at || '';
                 const formattedDate = formatTweetDate(rawDate);
                 const isManual = tweet.isManual || false;
                 
@@ -1054,7 +1050,7 @@
                             <input type="checkbox" class="tweet-checkbox" id="checkbox-${index}" 
                                    onchange="updateSelection()" checked>
                             <span class="tweet-author">@${author}</span>
-                            <span class="tweet-date" style="font-size: 0.8rem; color: rgba(255, 255, 255, 0.6);">${formattedDate}</span>
+                            <span class="tweet-date" style="font-size: 0.8rem; color: rgba(255, 255, 255, 0.6);">${formattedDate || '日時不明'}</span>
                             ${isManual ? '<span style="background: rgba(0, 212, 255, 0.3); color: #00d4ff; font-size: 0.7rem; padding: 0.2rem 0.4rem; border-radius: 3px; margin-left: 0.5rem;">手動追加</span>' : ''}
                         </div>
                         <div class="tweet-content">${text}</div>
@@ -1150,7 +1146,7 @@
                         author = tweet.username;
                     }
                     
-                    const date = tweet.created_at || tweet.date || '';
+                    const date = tweet.createdAt || tweet.created_at || tweet.date || '';
                     selectedTweets.push(`${selectedTweets.length + 1}. @${author} (${date}):\n${text}`);
                 }
             });
