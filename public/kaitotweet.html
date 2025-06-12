@@ -691,6 +691,7 @@
                     const tweetData = data.tweet;
                     tweetData.id = tweetId;
                     tweetData.isManual = true;
+                    tweetData.originalUrl = tweetUrl; // 元のURLも保存
                     manualTweets.push(tweetData);
                     
                     // 手動追加ツイート表示を更新
@@ -776,12 +777,16 @@
                 const rawDate = tweet.createdAt || tweet.created_at || tweet.date || tweet.timestamp || tweet.time || tweet.created || tweet.published_at || '';
                 const formattedDate = formatTweetDate(rawDate);
                 
+                // 手動追加ツイートのURL
+                const tweetUrl = tweet.originalUrl || '';
+                
                 return `
-                    <div class="tweet-item" style="margin-bottom: 0.8rem; position: relative;">
+                    <div class="tweet-item" style="margin-bottom: 0.8rem; position: relative; ${tweetUrl ? 'cursor: pointer;' : ''}" ${tweetUrl ? `onclick="openTweet('${tweetUrl}', event)"` : ''}>
                         <div class="tweet-header">
                             <span class="tweet-author">@${author}</span>
                             <span class="tweet-date" style="font-size: 0.8rem; color: rgba(255, 255, 255, 0.6);">${formattedDate || '日時不明'}</span>
-                            <button onclick="removeManualTweet(${index})" style="
+                            ${tweetUrl ? '<span style="font-size: 0.7rem; color: rgba(255, 255, 255, 0.4); margin-left: 0.5rem;">🔗 クリックでツイートを開く</span>' : ''}
+                            <button onclick="removeManualTweet(${index}); event.stopPropagation();" style="
                                 position: absolute; 
                                 right: 0.5rem; 
                                 top: 0.3rem; 
@@ -1044,14 +1049,28 @@
                 const formattedDate = formatTweetDate(rawDate);
                 const isManual = tweet.isManual || false;
                 
+                // ツイートURLを構築
+                const tweetId = tweet.id || tweet.id_str || '';
+                let tweetUrl = '';
+                if (tweetId) {
+                    if (isManual && tweet.originalUrl) {
+                        // 手動追加ツイートの場合は元のURLを使用
+                        tweetUrl = tweet.originalUrl;
+                    } else if (author !== 'Unknown') {
+                        // 通常のツイートの場合はURLを構築
+                        tweetUrl = `https://x.com/${author}/status/${tweetId}`;
+                    }
+                }
+                
                 return `
-                    <div class="tweet-item" id="tweet-${index}">
+                    <div class="tweet-item" id="tweet-${index}" ${tweetUrl ? `onclick="openTweet('${tweetUrl}', event)" style="cursor: pointer;"` : ''}>
                         <div class="tweet-header">
                             <input type="checkbox" class="tweet-checkbox" id="checkbox-${index}" 
-                                   onchange="updateSelection()" checked>
+                                   onchange="updateSelection()" checked onclick="event.stopPropagation();">
                             <span class="tweet-author">@${author}</span>
                             <span class="tweet-date" style="font-size: 0.8rem; color: rgba(255, 255, 255, 0.6);">${formattedDate || '日時不明'}</span>
                             ${isManual ? '<span style="background: rgba(0, 212, 255, 0.3); color: #00d4ff; font-size: 0.7rem; padding: 0.2rem 0.4rem; border-radius: 3px; margin-left: 0.5rem;">手動追加</span>' : ''}
+                            ${tweetUrl ? '<span style="font-size: 0.7rem; color: rgba(255, 255, 255, 0.4); margin-left: 0.5rem;">🔗 クリックでツイートを開く</span>' : ''}
                         </div>
                         <div class="tweet-content">${text}</div>
                     </div>
@@ -1224,6 +1243,17 @@
                 aiBtnTop.disabled = false;
                 aiLoading.style.display = 'none';
             }
+        }
+        
+        // ツイートリンクを開く関数
+        function openTweet(url, event) {
+            // チェックボックスクリック時は動作しないようにする
+            if (event && event.target && (event.target.type === 'checkbox' || event.target.tagName === 'BUTTON')) {
+                return;
+            }
+            
+            // 新しいタブでツイートを開く
+            window.open(url, '_blank', 'noopener,noreferrer');
         }
     </script>
 </body>
