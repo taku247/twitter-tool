@@ -397,6 +397,85 @@
                         </div>
                     </div>
                     
+                    <!-- 日時フィルター -->
+                    <div style="margin-top: 1rem;">
+                        <div style="font-size: 0.85rem; color: rgba(255, 255, 255, 0.7); margin-bottom: 0.5rem;">日時フィルター:</div>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.8rem;">
+                            <div>
+                                <label for="sinceDate" style="font-size: 0.8rem; color: rgba(255, 255, 255, 0.6);">開始日時</label>
+                                <input type="datetime-local" id="sinceDate" onchange="updateDateFilters()" style="
+                                    width: 100%; 
+                                    padding: 0.6rem; 
+                                    background: rgba(255, 255, 255, 0.05); 
+                                    border: 1px solid rgba(255, 255, 255, 0.2); 
+                                    border-radius: 6px; 
+                                    color: #ffffff; 
+                                    font-size: 0.8rem;
+                                    color-scheme: dark;
+                                ">
+                            </div>
+                            <div>
+                                <label for="untilDate" style="font-size: 0.8rem; color: rgba(255, 255, 255, 0.6);">終了日時</label>
+                                <input type="datetime-local" id="untilDate" onchange="updateDateFilters()" style="
+                                    width: 100%; 
+                                    padding: 0.6rem; 
+                                    background: rgba(255, 255, 255, 0.05); 
+                                    border: 1px solid rgba(255, 255, 255, 0.2); 
+                                    border-radius: 6px; 
+                                    color: #ffffff; 
+                                    font-size: 0.8rem;
+                                    color-scheme: dark;
+                                ">
+                            </div>
+                        </div>
+                        <div style="margin-top: 0.5rem; display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                            <button type="button" onclick="setQuickDateFilter('1hour')" style="
+                                background: rgba(255, 193, 7, 0.1); 
+                                border: 1px solid rgba(255, 193, 7, 0.3); 
+                                color: #ffc107; 
+                                padding: 0.3rem 0.6rem; 
+                                border-radius: 4px; 
+                                cursor: pointer; 
+                                font-size: 0.7rem;
+                                transform: none;
+                                box-shadow: none;
+                            ">過去1時間</button>
+                            <button type="button" onclick="setQuickDateFilter('24hours')" style="
+                                background: rgba(255, 193, 7, 0.1); 
+                                border: 1px solid rgba(255, 193, 7, 0.3); 
+                                color: #ffc107; 
+                                padding: 0.3rem 0.6rem; 
+                                border-radius: 4px; 
+                                cursor: pointer; 
+                                font-size: 0.7rem;
+                                transform: none;
+                                box-shadow: none;
+                            ">過去24時間</button>
+                            <button type="button" onclick="setQuickDateFilter('7days')" style="
+                                background: rgba(255, 193, 7, 0.1); 
+                                border: 1px solid rgba(255, 193, 7, 0.3); 
+                                color: #ffc107; 
+                                padding: 0.3rem 0.6rem; 
+                                border-radius: 4px; 
+                                cursor: pointer; 
+                                font-size: 0.7rem;
+                                transform: none;
+                                box-shadow: none;
+                            ">過去7日</button>
+                            <button type="button" onclick="clearDateFilters()" style="
+                                background: rgba(255, 0, 68, 0.1); 
+                                border: 1px solid rgba(255, 0, 68, 0.3); 
+                                color: #ff0044; 
+                                padding: 0.3rem 0.6rem; 
+                                border-radius: 4px; 
+                                cursor: pointer; 
+                                font-size: 0.7rem;
+                                transform: none;
+                                box-shadow: none;
+                            ">クリア</button>
+                        </div>
+                    </div>
+                    
                     <!-- 実際の検索クエリ表示 -->
                     <div id="searchPreview" style="
                         margin-top: 1rem; 
@@ -770,10 +849,39 @@
         
         // 検索クエリ作成
         function buildSearchQuery(baseQuery) {
-            if (selectedFilters.length === 0) {
+            let allFilters = [...selectedFilters];
+            
+            // 日時フィルターを追加
+            const sinceDate = document.getElementById('sinceDate').value;
+            const untilDate = document.getElementById('untilDate').value;
+            
+            if (sinceDate) {
+                const sinceFormatted = formatDateForTwitter(sinceDate);
+                allFilters.push(`since:${sinceFormatted}`);
+            }
+            
+            if (untilDate) {
+                const untilFormatted = formatDateForTwitter(untilDate);
+                allFilters.push(`until:${untilFormatted}`);
+            }
+            
+            if (allFilters.length === 0) {
                 return baseQuery;
             }
-            return baseQuery + ' ' + selectedFilters.join(' ');
+            return baseQuery + ' ' + allFilters.join(' ');
+        }
+        
+        // 日時をTwitter検索形式に変換
+        function formatDateForTwitter(datetimeLocal) {
+            const date = new Date(datetimeLocal);
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            const hours = String(date.getHours()).padStart(2, '0');
+            const minutes = String(date.getMinutes()).padStart(2, '0');
+            const seconds = String(date.getSeconds()).padStart(2, '0');
+            
+            return `${year}-${month}-${day}_${hours}:${minutes}:${seconds}_UTC`;
         }
         
         // 検索プレビュー更新
@@ -782,7 +890,10 @@
             const preview = document.getElementById('searchPreview');
             const previewText = document.getElementById('searchPreviewText');
             
-            if (selectedFilters.length === 0) {
+            const sinceDate = document.getElementById('sinceDate').value;
+            const untilDate = document.getElementById('untilDate').value;
+            
+            if (selectedFilters.length === 0 && !sinceDate && !untilDate) {
                 preview.style.display = 'none';
                 return;
             }
@@ -790,6 +901,55 @@
             const fullQuery = buildSearchQuery(baseQuery || 'キーワード');
             previewText.textContent = fullQuery;
             preview.style.display = 'block';
+        }
+        
+        // 日時フィルター更新
+        function updateDateFilters() {
+            updateSearchPreview();
+        }
+        
+        // クイック日時フィルター
+        function setQuickDateFilter(type) {
+            const now = new Date();
+            const sinceInput = document.getElementById('sinceDate');
+            const untilInput = document.getElementById('untilDate');
+            
+            let sinceTime;
+            switch (type) {
+                case '1hour':
+                    sinceTime = new Date(now.getTime() - 60 * 60 * 1000);
+                    break;
+                case '24hours':
+                    sinceTime = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+                    break;
+                case '7days':
+                    sinceTime = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+                    break;
+            }
+            
+            if (sinceTime) {
+                sinceInput.value = formatDateTimeLocal(sinceTime);
+                untilInput.value = formatDateTimeLocal(now);
+            }
+            
+            updateSearchPreview();
+        }
+        
+        // 日時フィルタークリア
+        function clearDateFilters() {
+            document.getElementById('sinceDate').value = '';
+            document.getElementById('untilDate').value = '';
+            updateSearchPreview();
+        }
+        
+        // datetime-local形式に変換
+        function formatDateTimeLocal(date) {
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            const hours = String(date.getHours()).padStart(2, '0');
+            const minutes = String(date.getMinutes()).padStart(2, '0');
+            return `${year}-${month}-${day}T${hours}:${minutes}`;
         }
         
         // 検索入力欄の変更を監視
