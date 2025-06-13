@@ -55,9 +55,46 @@ npm start
 
 ## Deployment
 
-This application is configured for Vercel deployment with:
-- `vercel.json` configuration
-- Environment variables setup
+This application is deployed on Vercel with automatic deployment configured.
+
+### Production URL
+🌐 **https://twitter-tool-eight.vercel.app**
+
+### Deployment Workflow
+
+#### Automatic Deployment
+- **main branch** → Production environment (twitter-tool-eight.vercel.app)
+- **Other branches** → Preview environments (temporary URLs)
+
+#### Development Process
+1. **Create feature branch**
+   ```bash
+   git checkout -b feature/your-feature
+   # Make changes
+   git push origin feature/your-feature
+   ```
+   → Creates preview deployment with unique URL
+
+2. **Create Pull Request**
+   - Vercel automatically comments with preview URL
+   - Test changes in preview environment
+
+3. **Merge to main**
+   ```bash
+   git checkout main
+   git merge feature/your-feature
+   git push origin main
+   ```
+   → Automatically deploys to production
+
+#### Viewing Deployments
+- **Vercel Dashboard**: https://vercel.com/dashboard → twitter-tool → Deployments tab
+- **GitHub PR Comments**: Preview URLs posted automatically
+- **GitHub Commit Status**: Check results with deployment links
+
+### Configuration
+- `vercel.json` - Vercel deployment configuration
+- Environment variables setup in Vercel dashboard
 - Node.js runtime support
 
 ## License
