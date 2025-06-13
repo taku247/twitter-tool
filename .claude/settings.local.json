@@ -22,7 +22,14 @@
       "Bash(git rm:*)",
       "Bash(git add:*)",
       "Bash(git commit:*)",
-      "Bash(npm start)"
+      "Bash(npm start)",
+      "Bash(npm install:*)",
+      "Bash(rm:*)",
+      "Bash(ls:*)",
+      "Bash(npm ls:*)",
+      "Bash(node --version)",
+      "Bash(npm run dev:*)",
+      "Bash(grep:*)"
     ],
     "deny": []
   }
