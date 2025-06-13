@@ -740,8 +740,276 @@
     </div>
 
     <!-- Firebase設定とFirestoreサービス読み込み -->
-    <script type="module" src="firebase-config.js"></script>
-    <script type="module" src="firestore-templates.js"></script>
+    <script type="module">
+        // Firebase設定とFirestoreサービスを統合読み込み
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.9.1/firebase-app.js';
+        import { 
+            getFirestore,
+            collection, 
+            doc, 
+            addDoc, 
+            updateDoc, 
+            deleteDoc, 
+            getDocs, 
+            getDoc,
+            onSnapshot,
+            orderBy,
+            query,
+            where,
+            Timestamp 
+        } from 'https://www.gstatic.com/firebasejs/11.9.1/firebase-firestore.js';
+
+        // Firebase configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyAME5BfBd-xfOpV-Mb7x2Q_XS9wG_jrwXA",
+            authDomain: "meme-coin-tracker-79c24.firebaseapp.com",
+            projectId: "meme-coin-tracker-79c24",
+            storageBucket: "meme-coin-tracker-79c24.firebasestorage.app",
+            messagingSenderId: "944579690444",
+            appId: "1:944579690444:web:4f452680c38ff17caa2769",
+            measurementId: "G-78KWRC4N05"
+        };
+
+        // Initialize Firebase
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+
+        // Firestore Templates Service
+        class FirestoreTemplatesService {
+            static COLLECTION_NAME = 'prompt-templates';
+            
+            static dailyUsage = {
+                date: new Date().toDateString(),
+                writes: 0,
+                reads: 0
+            };
+            
+            static checkDailyReset() {
+                const today = new Date().toDateString();
+                if (this.dailyUsage.date !== today) {
+                    this.dailyUsage = { date: today, writes: 0, reads: 0 };
+                    console.log('🔄 Firebase使用量カウンターをリセットしました');
+                }
+            }
+            
+            static trackUsage(operation, count = 1) {
+                this.checkDailyReset();
+                this.dailyUsage[operation === 'read' ? 'reads' : 'writes'] += count;
+                
+                const remaining = 20000 - this.dailyUsage.writes;
+                if (remaining < 1000) {
+                    console.warn(`⚠️ Firebase書き込み制限接近: 残り${remaining}回`);
+                }
+            }
+            
+            static getDailyUsage() {
+                this.checkDailyReset();
+                return { ...this.dailyUsage };
+            }
+
+            static async addTemplate(templateData) {
+                try {
+                    const now = Timestamp.now();
+                    const docRef = await addDoc(collection(db, this.COLLECTION_NAME), {
+                        ...templateData,
+                        createdAt: now,
+                        updatedAt: now
+                    });
+                    
+                    this.trackUsage('write');
+                    console.log('🔥 Firestore: テンプレート追加成功', docRef.id);
+                    return docRef.id;
+                } catch (error) {
+                    console.error('❌ Firestore: テンプレート追加失敗', error);
+                    throw error;
+                }
+            }
+
+            static async updateTemplate(templateId, updates) {
+                try {
+                    const templateRef = doc(db, this.COLLECTION_NAME, templateId);
+                    await updateDoc(templateRef, {
+                        ...updates,
+                        updatedAt: Timestamp.now()
+                    });
+                    
+                    this.trackUsage('write');
+                    console.log('🔥 Firestore: テンプレート更新成功', templateId);
+                } catch (error) {
+                    console.error('❌ Firestore: テンプレート更新失敗', error);
+                    throw error;
+                }
+            }
+
+            static async deleteTemplate(templateId) {
+                try {
+                    await deleteDoc(doc(db, this.COLLECTION_NAME, templateId));
+                    this.trackUsage('write');
+                    console.log('🔥 Firestore: テンプレート削除成功', templateId);
+                } catch (error) {
+                    console.error('❌ Firestore: テンプレート削除失敗', error);
+                    throw error;
+                }
+            }
+
+            static async getAllTemplates() {
+                try {
+                    const q = query(collection(db, this.COLLECTION_NAME), orderBy('createdAt', 'desc'));
+                    const querySnapshot = await getDocs(q);
+                    const templates = [];
+                    
+                    querySnapshot.forEach((doc) => {
+                        templates.push({
+                            id: doc.id,
+                            ...doc.data()
+                        });
+                    });
+                    
+                    this.trackUsage('read', templates.length);
+                    console.log('🔥 Firestore: テンプレート取得成功', templates.length + '件');
+                    return templates;
+                } catch (error) {
+                    console.error('❌ Firestore: テンプレート取得失敗', error);
+                    throw error;
+                }
+            }
+
+            static async getDefaultTemplate() {
+                try {
+                    const q = query(
+                        collection(db, this.COLLECTION_NAME), 
+                        where('isDefault', '==', true)
+                    );
+                    const querySnapshot = await getDocs(q);
+                    
+                    if (!querySnapshot.empty) {
+                        const doc = querySnapshot.docs[0];
+                        this.trackUsage('read');
+                        return {
+                            id: doc.id,
+                            ...doc.data()
+                        };
+                    }
+                    
+                    return null;
+                } catch (error) {
+                    console.error('❌ Firestore: デフォルトテンプレート取得失敗', error);
+                    throw error;
+                }
+            }
+
+            static async setDefaultTemplate(templateId) {
+                try {
+                    const allTemplates = await this.getAllTemplates();
+                    const updatePromises = allTemplates
+                        .filter(template => template.isDefault)
+                        .map(template => this.updateTemplate(template.id, { isDefault: false }));
+                    
+                    await Promise.all(updatePromises);
+                    await this.updateTemplate(templateId, { isDefault: true });
+                    
+                    console.log('🔥 Firestore: デフォルトテンプレート設定成功', templateId);
+                } catch (error) {
+                    console.error('❌ Firestore: デフォルトテンプレート設定失敗', error);
+                    throw error;
+                }
+            }
+
+            static subscribeToTemplates(callback) {
+                try {
+                    const q = query(collection(db, this.COLLECTION_NAME), orderBy('createdAt', 'desc'));
+                    
+                    return onSnapshot(q, (querySnapshot) => {
+                        const templates = [];
+                        querySnapshot.forEach((doc) => {
+                            templates.push({
+                                id: doc.id,
+                                ...doc.data()
+                            });
+                        });
+                        
+                        console.log('🔥 Firestore: テンプレートリアルタイム更新', templates.length + '件');
+                        callback(templates);
+                    });
+                } catch (error) {
+                    console.error('❌ Firestore: リアルタイム監視失敗', error);
+                    throw error;
+                }
+            }
+
+            static async initializeDefaultTemplates() {
+                try {
+                    const existingTemplates = await this.getAllTemplates();
+                    if (existingTemplates.length > 0) {
+                        console.log('🔥 Firestore: 既存テンプレートあり、初期化スキップ');
+                        return;
+                    }
+
+                    console.log('🔥 Firestore: 初期テンプレートを作成中...');
+
+                    const defaultTemplates = [
+                        {
+                            name: 'トレンド分析',
+                            content: `以下のツイートを分析してください：
+
+1. 主要なトピックと傾向
+2. 感情の分析
+3. 注目すべき意見や発言
+4. 全体的な要約
+
+分析対象のツイート:`,
+                            isDefault: true
+                        },
+                        {
+                            name: '感情分析特化',
+                            content: `以下のツイートの感情を詳しく分析してください：
+
+1. 全体的な感情（ポジティブ/ネガティブ/ニュートラル）
+2. 主要な感情の種類と強度
+3. 感情の分布と傾向
+4. 特徴的な表現や言葉遣い
+
+分析対象のツイート:`,
+                            isDefault: false
+                        }
+                    ];
+
+                    const promises = defaultTemplates.map(template => this.addTemplate(template));
+                    await Promise.all(promises);
+
+                    console.log('✅ Firestore: 初期テンプレート作成完了');
+                } catch (error) {
+                    console.error('❌ Firestore: 初期テンプレート作成失敗', error);
+                    throw error;
+                }
+            }
+
+            static async checkDuplicateName(name, excludeId = null) {
+                try {
+                    const q = query(
+                        collection(db, this.COLLECTION_NAME), 
+                        where('name', '==', name)
+                    );
+                    const querySnapshot = await getDocs(q);
+                    
+                    if (excludeId) {
+                        return querySnapshot.docs.some(doc => doc.id !== excludeId);
+                    }
+                    
+                    return !querySnapshot.empty;
+                } catch (error) {
+                    console.error('❌ Firestore: 重複チェック失敗', error);
+                    return false;
+                }
+            }
+        }
+
+        // グローバルに公開
+        window.firebaseAuth = { db };
+        window.FirestoreTemplatesService = FirestoreTemplatesService;
+        
+        console.log('🔥 Firebase initialized successfully for Twitter Analytics Tool');
+    </script>
     
     <script>
         let searchResults = null;
