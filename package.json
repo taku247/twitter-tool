@@ -4,8 +4,12 @@
   "description": "Twitter Analytics Dashboard using TwitterAPI.io",
   "main": "server.js",
   "scripts": {
-    "start": "PORT=3002 node server.js",
-    "dev": "PORT=3002 nodemon server.js"
+    "start": "node server.js",
+    "dev": "PORT=3002 nodemon server.js",
+    "build": "echo 'No build step required'"
+  },
+  "engines": {
+    "node": ">=18.0.0"
   },
   "keywords": [
     "twitter",
