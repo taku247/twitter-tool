@@ -772,7 +772,8 @@
 
         // Initialize Firebase
         const app = initializeApp(firebaseConfig);
-        const db = getFirestore(app);
+        // Use named database 'twitter-tool' instead of default
+        const db = getFirestore(app, 'twitter-tool');
 
         // Firestore Templates Service
         class FirestoreTemplatesService {
