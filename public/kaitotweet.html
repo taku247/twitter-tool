@@ -333,9 +333,9 @@
             <div class="logo">KaitoTweet</div>
             <ul class="nav-links">
                 <li><a href="/" class="nav-link">Dashboard</a></li>
-                <li><a href="/test.html" class="nav-link">API Test</a></li>
                 <li><a href="/kaitotweet.html" class="nav-link">KaitoTweet</a></li>
-                <li><a href="#" class="nav-link">Docs</a></li>
+                <li><a href="/user-tracker.html" class="nav-link">User Tracker</a></li>
+                <li><a href="/test.html" class="nav-link">API Test</a></li>
             </ul>
         </nav>
     </header>
@@ -382,18 +382,30 @@
                                 transform: none;
                                 box-shadow: none;
                             ">🇺🇸 英語</button>
-                            <button type="button" class="quick-filter-btn" id="filter-no-rt" onclick="toggleFilter('-is:retweet', '🚫 RT除外')" style="
-                                background: rgba(0, 212, 255, 0.1); 
-                                border: 1px solid rgba(0, 212, 255, 0.3); 
+                            <button type="button" class="quick-filter-btn active" id="filter-no-rt" onclick="toggleFilter('-is:retweet', '🚫 RT除外')" style="
+                                background: rgba(0, 212, 255, 0.2); 
+                                border: 1px solid rgba(0, 212, 255, 0.5); 
                                 color: #00d4ff; 
                                 padding: 0.4rem 0.8rem; 
                                 border-radius: 6px; 
                                 cursor: pointer; 
                                 font-size: 0.8rem; 
                                 transition: all 0.3s ease;
-                                transform: none;
-                                box-shadow: none;
+                                transform: translateY(-2px);
+                                box-shadow: 0 2px 8px rgba(0, 212, 255, 0.3);
                             ">🚫 RT除外</button>
+                            <button type="button" class="quick-filter-btn active" id="filter-no-reply" onclick="toggleFilter('exclude:replies', '💬 コメント除外')" style="
+                                background: rgba(0, 212, 255, 0.2); 
+                                border: 1px solid rgba(0, 212, 255, 0.5); 
+                                color: #00d4ff; 
+                                padding: 0.4rem 0.8rem; 
+                                border-radius: 6px; 
+                                cursor: pointer; 
+                                font-size: 0.8rem; 
+                                transition: all 0.3s ease;
+                                transform: translateY(-2px);
+                                box-shadow: 0 2px 8px rgba(0, 212, 255, 0.3);
+                            ">💬 コメント除外</button>
                         </div>
                     </div>
                     
@@ -477,6 +489,32 @@
                                 box-shadow: none;
                             ">クリア</button>
                         </div>
+                    </div>
+                    
+                    <!-- ソート選択 -->
+                    <div style="margin-top: 1rem;">
+                        <label style="
+                            display: block; 
+                            margin-bottom: 0.5rem; 
+                            font-weight: 600; 
+                            color: rgba(255, 255, 255, 0.9);
+                            font-size: 0.9rem;
+                        ">🔄 並び順</label>
+                        <select id="sortSelect" style="
+                            width: 100%;
+                            padding: 0.75rem;
+                            background: rgba(255, 255, 255, 0.1);
+                            border: 1px solid rgba(255, 255, 255, 0.2);
+                            border-radius: 8px;
+                            color: #ffffff;
+                            font-size: 1rem;
+                            outline: none;
+                            cursor: pointer;
+                        ">
+                            <option value="Top" style="background: #2c2c2c; color: #ffffff;">🔥 人気順</option>
+                            <option value="Latest" style="background: #2c2c2c; color: #ffffff;">🕒 最新順</option>
+                            <option value="Oldest" style="background: #2c2c2c; color: #ffffff;">📅 古い順</option>
+                        </select>
                     </div>
                     
                     <!-- 実際の検索クエリ表示 -->
@@ -1015,7 +1053,7 @@
     <script>
         let searchResults = null;
         let manualTweets = [];
-        let selectedFilters = [];
+        let selectedFilters = ['-is:retweet', 'exclude:replies'];
         let promptTemplates = [];
         let templatesUnsubscribe = null; // Firestoreリアルタイム監視の解除用
 
@@ -1024,6 +1062,7 @@
             e.preventDefault();
             
             const baseQuery = document.getElementById('searchQuery').value.trim();
+            const sortType = document.getElementById('sortSelect').value;
             const searchBtn = document.getElementById('searchBtn');
             const searchLoading = document.getElementById('searchLoading');
             
@@ -1046,7 +1085,7 @@
                     headers: {
                         'Content-Type': 'application/json'
                     },
-                    body: JSON.stringify({ query: fullQuery })
+                    body: JSON.stringify({ query: fullQuery, sortType: sortType })
                 });
                 
                 const data = await response.json();
@@ -1321,19 +1360,34 @@
         // 検索プレビュー更新
         function updateSearchPreview() {
             const baseQuery = document.getElementById('searchQuery').value.trim();
+            const sortType = document.getElementById('sortSelect').value;
             const preview = document.getElementById('searchPreview');
             const previewText = document.getElementById('searchPreviewText');
             
             const sinceDate = document.getElementById('sinceDate').value;
             const untilDate = document.getElementById('untilDate').value;
             
-            if (selectedFilters.length === 0 && !sinceDate && !untilDate) {
+            if (selectedFilters.length === 0 && !sinceDate && !untilDate && sortType === 'Top') {
                 preview.style.display = 'none';
                 return;
             }
             
             const fullQuery = buildSearchQuery(baseQuery || 'キーワード');
-            previewText.textContent = fullQuery;
+            
+            // ソート情報を表示用に追加（APIパラメーターとして）
+            let sortLabel = '';
+            switch(sortType) {
+                case 'Top': sortLabel = '🔥 人気順'; break;
+                case 'Latest': sortLabel = '🕒 最新順'; break;
+                case 'Oldest': sortLabel = '📅 古い順'; break;
+            }
+            
+            // クエリとAPIパラメーターを分けて表示
+            if (sortType === 'Top') {
+                previewText.innerHTML = `<strong>検索クエリ:</strong> ${fullQuery}`;
+            } else {
+                previewText.innerHTML = `<strong>検索クエリ:</strong> ${fullQuery}<br><strong>APIパラメーター:</strong> queryType=${sortType} (${sortLabel})`;
+            }
             preview.style.display = 'block';
         }
         
@@ -1430,6 +1484,9 @@
         
         // 検索入力欄の変更を監視
         document.getElementById('searchQuery').addEventListener('input', updateSearchPreview);
+        
+        // 並び順選択の変更を監視
+        document.getElementById('sortSelect').addEventListener('change', updateSearchPreview);
 
         // ツイートデータを表示（統合版）
         function displayTweets(tweets) {

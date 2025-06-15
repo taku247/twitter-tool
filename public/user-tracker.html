@@ -1,0 +1,660 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>User Tracker - Twitter Analytics</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
+            background: linear-gradient(135deg, #0c0c0c 0%, #1a1a1a 100%);
+            min-height: 100vh;
+            color: #ffffff;
+            line-height: 1.6;
+        }
+        
+        .header {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 1rem 0;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+        
+        .nav {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .logo {
+            font-size: 1.5rem;
+            font-weight: 700;
+            background: linear-gradient(45deg, #1da1f2, #ffffff);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        .nav-links {
+            display: flex;
+            gap: 2rem;
+            list-style: none;
+        }
+        
+        .nav-link {
+            color: rgba(255, 255, 255, 0.7);
+            text-decoration: none;
+            font-weight: 500;
+            transition: color 0.3s ease;
+        }
+        
+        .nav-link:hover {
+            color: #1da1f2;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 3rem 2rem;
+        }
+        
+        .hero {
+            text-align: center;
+            margin-bottom: 4rem;
+        }
+        
+        .hero h1 {
+            font-size: 3rem;
+            font-weight: 800;
+            margin-bottom: 1rem;
+            background: linear-gradient(45deg, #1da1f2, #ffffff);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        .hero p {
+            font-size: 1.2rem;
+            color: rgba(255, 255, 255, 0.6);
+            max-width: 600px;
+            margin: 0 auto;
+        }
+        
+        .card {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            padding: 2rem;
+            margin-bottom: 2rem;
+        }
+        
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+        
+        .form-label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 600;
+            color: #ffffff;
+        }
+        
+        .form-input {
+            width: 100%;
+            padding: 0.75rem;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 8px;
+            color: #ffffff;
+            font-size: 1rem;
+        }
+        
+        .form-input::placeholder {
+            color: rgba(255, 255, 255, 0.5);
+        }
+        
+        .form-input:focus {
+            outline: none;
+            border-color: #1da1f2;
+            box-shadow: 0 0 0 2px rgba(29, 161, 242, 0.2);
+        }
+        
+        .form-row {
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+        }
+        
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 60px;
+            height: 34px;
+        }
+        
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+        
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            transition: .4s;
+            border-radius: 34px;
+        }
+        
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 26px;
+            width: 26px;
+            left: 4px;
+            bottom: 4px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+        
+        input:checked + .slider {
+            background-color: #1da1f2;
+        }
+        
+        input:checked + .slider:before {
+            transform: translateX(26px);
+        }
+        
+        .select-input {
+            padding: 0.75rem;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 8px;
+            color: #ffffff;
+            font-size: 1rem;
+            min-width: 150px;
+        }
+        
+        .btn {
+            background: linear-gradient(45deg, #1da1f2, #0891d1);
+            color: white;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(29, 161, 242, 0.3);
+        }
+        
+        .btn:disabled {
+            background: rgba(255, 255, 255, 0.2);
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .user-list {
+            display: grid;
+            gap: 1rem;
+        }
+        
+        .user-item {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            padding: 1.5rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .user-info h3 {
+            margin-bottom: 0.5rem;
+            color: #1da1f2;
+        }
+        
+        .user-info p {
+            color: rgba(255, 255, 255, 0.6);
+            font-size: 0.9rem;
+        }
+        
+        .user-controls {
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+        }
+        
+        .status-badge {
+            padding: 0.25rem 0.75rem;
+            border-radius: 12px;
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+        
+        .status-active {
+            background: rgba(34, 197, 94, 0.2);
+            color: #22c55e;
+        }
+        
+        .status-inactive {
+            background: rgba(156, 163, 175, 0.2);
+            color: #9ca3af;
+        }
+        
+        .btn-small {
+            padding: 0.5rem 1rem;
+            font-size: 0.9rem;
+        }
+        
+        .btn-danger {
+            background: linear-gradient(45deg, #ef4444, #dc2626);
+        }
+        
+        .btn-danger:hover {
+            box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
+        }
+        
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 2rem;
+        }
+        
+        .spinner {
+            border: 3px solid rgba(255, 255, 255, 0.1);
+            border-top: 3px solid #1da1f2;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .error {
+            background: rgba(239, 68, 68, 0.1);
+            border: 1px solid rgba(239, 68, 68, 0.3);
+            color: #ef4444;
+            padding: 1rem;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+        }
+        
+        .success {
+            background: rgba(34, 197, 94, 0.1);
+            border: 1px solid rgba(34, 197, 94, 0.3);
+            color: #22c55e;
+            padding: 1rem;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+        }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <nav class="nav">
+            <div class="logo">Twitter User Tracker</div>
+            <ul class="nav-links">
+                <li><a href="/" class="nav-link">Dashboard</a></li>
+                <li><a href="/kaitotweet.html" class="nav-link">KaitoTweet</a></li>
+                <li><a href="/user-tracker.html" class="nav-link">User Tracker</a></li>
+            </ul>
+        </nav>
+    </header>
+
+    <div class="container">
+        <div class="hero">
+            <h1>User Tracker</h1>
+            <p>特定のTwitterユーザーを追跡し、定期的にツイートをチェックします</p>
+        </div>
+
+        <!-- Add User Form -->
+        <div class="card">
+            <h2>ユーザーを追加</h2>
+            <div id="messages"></div>
+            
+            <form id="addUserForm">
+                <div class="form-group">
+                    <label class="form-label" for="username">ユーザー名（@なし）</label>
+                    <input 
+                        type="text" 
+                        id="username" 
+                        class="form-input" 
+                        placeholder="elonmusk"
+                        required
+                    >
+                </div>
+                
+                <div class="form-group">
+                    <div class="form-row">
+                        <label class="form-label">追跡を有効にする</label>
+                        <label class="switch">
+                            <input type="checkbox" id="trackingEnabled" checked>
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label" for="interval">チェック間隔</label>
+                    <select id="interval" class="select-input">
+                        <option value="1">1時間</option>
+                        <option value="3">3時間</option>
+                        <option value="6" selected>6時間</option>
+                        <option value="12">12時間</option>
+                        <option value="24">24時間</option>
+                    </select>
+                </div>
+                
+                <button type="submit" class="btn" id="addButton">
+                    ユーザーを追加
+                </button>
+            </form>
+        </div>
+
+        <!-- Loading indicator -->
+        <div class="loading" id="loading">
+            <div class="spinner"></div>
+            <p>処理中...</p>
+        </div>
+
+        <!-- User List -->
+        <div class="card">
+            <h2>追跡中のユーザー</h2>
+            <div class="user-list" id="userList">
+                <!-- Users will be loaded here -->
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        // Firebase imports
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.9.1/firebase-app.js';
+        import { 
+            getFirestore,
+            collection, 
+            doc, 
+            addDoc, 
+            updateDoc, 
+            deleteDoc, 
+            getDocs, 
+            getDoc,
+            onSnapshot,
+            orderBy,
+            query,
+            where,
+            Timestamp 
+        } from 'https://www.gstatic.com/firebasejs/11.9.1/firebase-firestore.js';
+
+        // Firebase configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyAME5BfBd-xfOpV-Mb7x2Q_XS9wG_jrwXA",
+            authDomain: "meme-coin-tracker-79c24.firebaseapp.com",
+            projectId: "meme-coin-tracker-79c24",
+            storageBucket: "meme-coin-tracker-79c24.firebasestorage.app",
+            messagingSenderId: "944579690444",
+            appId: "1:944579690444:web:4f452680c38ff17caa2769",
+            measurementId: "G-78KWRC4N05"
+        };
+
+        // Initialize Firebase
+        const app = initializeApp(firebaseConfig);
+        // Use named database 'twitter-tool' instead of default
+        const db = getFirestore(app, 'twitter-tool');
+
+        // Firestore Service for User Tracking
+        class UserTrackingService {
+            static COLLECTION_NAME = 'tracked-users';
+            
+            static async addUser(userData) {
+                try {
+                    const docRef = await addDoc(collection(db, this.COLLECTION_NAME), {
+                        ...userData,
+                        createdAt: Timestamp.now(),
+                        lastChecked: null
+                    });
+                    return { success: true, id: docRef.id };
+                } catch (error) {
+                    console.error('Error adding user:', error);
+                    return { success: false, error: error.message };
+                }
+            }
+            
+            static async getUsers() {
+                try {
+                    const q = query(
+                        collection(db, this.COLLECTION_NAME),
+                        orderBy('createdAt', 'desc')
+                    );
+                    const querySnapshot = await getDocs(q);
+                    const users = [];
+                    querySnapshot.forEach((doc) => {
+                        users.push({ id: doc.id, ...doc.data() });
+                    });
+                    return { success: true, users };
+                } catch (error) {
+                    console.error('Error getting users:', error);
+                    return { success: false, error: error.message };
+                }
+            }
+            
+            static async updateUser(userId, updates) {
+                try {
+                    const userRef = doc(db, this.COLLECTION_NAME, userId);
+                    await updateDoc(userRef, updates);
+                    return { success: true };
+                } catch (error) {
+                    console.error('Error updating user:', error);
+                    return { success: false, error: error.message };
+                }
+            }
+            
+            static async deleteUser(userId) {
+                try {
+                    await deleteDoc(doc(db, this.COLLECTION_NAME, userId));
+                    return { success: true };
+                } catch (error) {
+                    console.error('Error deleting user:', error);
+                    return { success: false, error: error.message };
+                }
+            }
+        }
+
+        // DOM elements
+        const addUserForm = document.getElementById('addUserForm');
+        const usernameInput = document.getElementById('username');
+        const trackingEnabledInput = document.getElementById('trackingEnabled');
+        const intervalInput = document.getElementById('interval');
+        const addButton = document.getElementById('addButton');
+        const messagesDiv = document.getElementById('messages');
+        const loadingDiv = document.getElementById('loading');
+        const userListDiv = document.getElementById('userList');
+
+        // Show message
+        function showMessage(message, type = 'info') {
+            messagesDiv.innerHTML = `<div class="${type}">${message}</div>`;
+            setTimeout(() => {
+                messagesDiv.innerHTML = '';
+            }, 5000);
+        }
+
+        // Show loading
+        function setLoading(loading) {
+            if (loading) {
+                loadingDiv.style.display = 'block';
+                addButton.disabled = true;
+            } else {
+                loadingDiv.style.display = 'none';
+                addButton.disabled = false;
+            }
+        }
+
+        // Validate username via Twitter API
+        async function validateUsername(username) {
+            try {
+                const response = await fetch('/api/twitter/user-info', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ username })
+                });
+                
+                const data = await response.json();
+                return { success: response.ok, data };
+            } catch (error) {
+                return { success: false, error: error.message };
+            }
+        }
+
+        // Add user
+        addUserForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const username = usernameInput.value.trim().replace('@', '');
+            const isTracking = trackingEnabledInput.checked;
+            const interval = parseInt(intervalInput.value);
+            
+            if (!username) {
+                showMessage('ユーザー名を入力してください', 'error');
+                return;
+            }
+            
+            setLoading(true);
+            
+            // Validate username
+            const validation = await validateUsername(username);
+            if (!validation.success) {
+                showMessage('ユーザー名が見つかりません', 'error');
+                setLoading(false);
+                return;
+            }
+            
+            // Add to Firestore
+            const userData = {
+                username: username,
+                displayName: validation.data.user?.name || username,
+                isTracking: isTracking,
+                trackingInterval: interval,
+                profileImageUrl: validation.data.user?.profile_image_url || null
+            };
+            
+            const result = await UserTrackingService.addUser(userData);
+            
+            if (result.success) {
+                showMessage('ユーザーが正常に追加されました', 'success');
+                addUserForm.reset();
+                loadUsers();
+            } else {
+                showMessage(`エラー: ${result.error}`, 'error');
+            }
+            
+            setLoading(false);
+        });
+
+        // Load and display users
+        async function loadUsers() {
+            const result = await UserTrackingService.getUsers();
+            
+            if (result.success) {
+                displayUsers(result.users);
+            } else {
+                showMessage(`ユーザー読み込みエラー: ${result.error}`, 'error');
+            }
+        }
+
+        // Display users
+        function displayUsers(users) {
+            if (users.length === 0) {
+                userListDiv.innerHTML = '<p style="text-align: center; color: rgba(255,255,255,0.6);">追跡中のユーザーはありません</p>';
+                return;
+            }
+            
+            userListDiv.innerHTML = users.map(user => {
+                const lastChecked = user.lastChecked ? 
+                    new Date(user.lastChecked.toDate()).toLocaleString('ja-JP') : 
+                    '未チェック';
+                
+                return `
+                    <div class="user-item">
+                        <div class="user-info">
+                            <h3>@${user.username}</h3>
+                            <p>${user.displayName || user.username}</p>
+                            <p>間隔: ${user.trackingInterval}時間 | 最終チェック: ${lastChecked}</p>
+                        </div>
+                        <div class="user-controls">
+                            <span class="status-badge ${user.isTracking ? 'status-active' : 'status-inactive'}">
+                                ${user.isTracking ? '追跡中' : '停止中'}
+                            </span>
+                            <button class="btn btn-small" onclick="toggleTracking('${user.id}', ${!user.isTracking})">
+                                ${user.isTracking ? '停止' : '開始'}
+                            </button>
+                            <button class="btn btn-small btn-danger" onclick="deleteUser('${user.id}')">
+                                削除
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // Toggle tracking
+        window.toggleTracking = async (userId, isTracking) => {
+            const result = await UserTrackingService.updateUser(userId, { isTracking });
+            
+            if (result.success) {
+                showMessage(`追跡設定を${isTracking ? '開始' : '停止'}しました`, 'success');
+                loadUsers();
+            } else {
+                showMessage(`エラー: ${result.error}`, 'error');
+            }
+        };
+
+        // Delete user
+        window.deleteUser = async (userId) => {
+            if (!confirm('このユーザーを削除しますか？')) return;
+            
+            const result = await UserTrackingService.deleteUser(userId);
+            
+            if (result.success) {
+                showMessage('ユーザーが削除されました', 'success');
+                loadUsers();
+            } else {
+                showMessage(`エラー: ${result.error}`, 'error');
+            }
+        };
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            loadUsers();
+        });
+    </script>
+</body>
+</html>

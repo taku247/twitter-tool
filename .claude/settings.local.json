@@ -29,7 +29,8 @@
       "Bash(npm ls:*)",
       "Bash(node --version)",
       "Bash(npm run dev:*)",
-      "Bash(grep:*)"
+      "Bash(grep:*)",
+      "Bash(rg:*)"
     ],
     "deny": []
   }

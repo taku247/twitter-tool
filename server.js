@@ -33,7 +33,7 @@ if (process.env.OPENAI_API_KEY) {
 // APIプロキシエンドポイント - 検索
 app.post('/api/twitter/search', async (req, res) => {
     try {
-        const { query } = req.body;
+        const { query, sortType = 'Top' } = req.body;
         
         if (!query) {
             return res.status(400).json({ error: 'Query parameter is required' });
@@ -41,15 +41,43 @@ app.post('/api/twitter/search', async (req, res) => {
 
         const url = 'https://api.twitterapi.io/twitter/tweet/advanced_search';
         
+        console.log(`Searching with query: "${query}", sortType: "${sortType}"`);
+        
+        // 古い順の場合はLatestで取得して後でソート
+        const apiSortType = sortType === 'Oldest' ? 'Latest' : sortType;
+        
         const response = await axios.get(url, {
-            params: { query },
+            params: { 
+                query,
+                queryType: apiSortType  // 'Latest' or 'Top'
+            },
             headers: {
                 'X-API-Key': process.env.TWITTER_API_KEY,
                 'Content-Type': 'application/json'
             }
         });
         
-        res.json(response.data);
+        let responseData = response.data;
+        
+        // 古い順の場合は、tweets配列を逆順にソート
+        if (sortType === 'Oldest' && responseData.tweets && Array.isArray(responseData.tweets)) {
+            console.log('DEBUG: First tweet before sorting:', JSON.stringify(responseData.tweets[0], null, 2));
+            
+            responseData.tweets = responseData.tweets.sort((a, b) => {
+                // 複数の日付フィールドを試行
+                const dateA = new Date(a.created_at || a.createdAt || a.date || a.timestamp || 0);
+                const dateB = new Date(b.created_at || b.createdAt || b.date || b.timestamp || 0);
+                
+                console.log(`DEBUG: Comparing ${dateA.toISOString()} vs ${dateB.toISOString()}`);
+                return dateA - dateB; // 古い順（昇順）
+            });
+            
+            console.log(`Sorted ${responseData.tweets.length} tweets in oldest-first order`);
+            console.log('DEBUG: First tweet after sorting:', responseData.tweets[0]?.created_at || responseData.tweets[0]?.createdAt || responseData.tweets[0]?.date);
+            console.log('DEBUG: Last tweet after sorting:', responseData.tweets[responseData.tweets.length-1]?.created_at || responseData.tweets[responseData.tweets.length-1]?.createdAt || responseData.tweets[responseData.tweets.length-1]?.date);
+        }
+        
+        res.json(responseData);
     } catch (error) {
         console.error('API Error:', error.response?.data || error.message);
         res.status(error.response?.status || 500).json({
@@ -477,6 +505,107 @@ app.post('/api/twitter/summarize', async (req, res) => {
             error: { 
                 message: error.message,
                 type: error.type || 'unknown'
+            }
+        });
+    }
+});
+
+// APIプロキシエンドポイント - ユーザー情報取得
+app.post('/api/twitter/user-info', async (req, res) => {
+    try {
+        const { username } = req.body;
+        
+        if (!username) {
+            return res.status(400).json({ error: 'Username parameter is required' });
+        }
+
+        console.log(`Fetching user info for: ${username}`);
+        
+        // TwitterAPI.ioでユーザー情報を取得（検索エンドポイントを使用）
+        const searchResponse = await axios.get('https://api.twitterapi.io/twitter/tweet/advanced_search', {
+            params: { 
+                query: `from:${username}`,
+                count: 1  // 最新の1件だけ取得してユーザー情報を確認
+            },
+            headers: {
+                'X-API-Key': process.env.TWITTER_API_KEY,
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        if (searchResponse.data && searchResponse.data.tweets && searchResponse.data.tweets.length > 0) {
+            const userInfo = searchResponse.data.tweets[0].author;
+            console.log(`User found: @${userInfo.userName}`);
+            res.json({ 
+                success: true,
+                user: {
+                    id: userInfo.id,
+                    username: userInfo.userName,
+                    name: userInfo.name,
+                    profile_image_url: userInfo.profilePicture,
+                    followers_count: userInfo.followers,
+                    following_count: userInfo.following,
+                    verified: userInfo.isVerified || false
+                }
+            });
+        } else {
+            console.log(`User not found: ${username}`);
+            res.status(404).json({ 
+                success: false,
+                error: 'User not found or has no recent tweets' 
+            });
+        }
+        
+    } catch (error) {
+        console.error('User Info API Error:', error.response?.data || error.message);
+        res.status(error.response?.status || 500).json({
+            success: false,
+            error: error.response?.data || { 
+                message: error.message,
+                note: 'User may not exist or account may be private.'
+            }
+        });
+    }
+});
+
+// APIプロキシエンドポイント - ユーザーのツイート取得
+app.post('/api/twitter/user-tweets', async (req, res) => {
+    try {
+        const { username, count = 20 } = req.body;
+        
+        if (!username) {
+            return res.status(400).json({ error: 'Username parameter is required' });
+        }
+
+        console.log(`Fetching tweets for user: ${username}`);
+        
+        // TwitterAPI.ioでユーザーのツイートを取得
+        const response = await axios.get('https://api.twitterapi.io/twitter/tweet/advanced_search', {
+            params: { 
+                query: `from:${username}`,
+                count: count
+            },
+            headers: {
+                'X-API-Key': process.env.TWITTER_API_KEY,
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        console.log(`Found ${response.data.tweets?.length || 0} tweets for @${username}`);
+        res.json({
+            success: true,
+            tweets: response.data.tweets || [],
+            user: response.data.tweets?.[0]?.author || null,
+            count: response.data.tweets?.length || 0
+        });
+        
+    } catch (error) {
+        console.error('User Tweets API Error:', error.response?.data || error.message);
+        res.status(error.response?.status || 500).json({
+            success: false,
+            error: error.response?.data || { 
+                message: error.message,
+                note: 'Unable to fetch user tweets. User may not exist or account may be private.'
             }
         });
     }
