@@ -3,6 +3,10 @@ const cors = require('cors');
 const axios = require('axios');
 const path = require('path');
 const { OpenAI } = require('openai');
+const WebSocket = require('ws');
+const http = require('http');
+const { initializeApp } = require('firebase/app');
+const { getFirestore, collection, addDoc, query, orderBy, limit, getDocs, deleteDoc, doc, where, writeBatch } = require('firebase/firestore');
 require('dotenv').config();
 
 const app = express();
@@ -18,6 +22,21 @@ if (!process.env.TWITTER_API_KEY) {
     console.error('Error: TWITTER_API_KEY is not set in .env file');
     process.exit(1);
 }
+
+// Firebase 初期化
+const firebaseConfig = {
+    apiKey: "AIzaSyAME5BfBd-xfOpV-Mb7x2Q_XS9wG_jrwXA",
+    authDomain: "meme-coin-tracker-79c24.firebaseapp.com",
+    projectId: "meme-coin-tracker-79c24",
+    storageBucket: "meme-coin-tracker-79c24.firebasestorage.app",
+    messagingSenderId: "944579690444",
+    appId: "1:944579690444:web:4f452680c38ff17caa2769",
+    measurementId: "G-78KWRC4N05"
+};
+
+const firebaseApp = initializeApp(firebaseConfig);
+const db = getFirestore(firebaseApp, 'twitter-tool'); // 名前付きデータベースを使用
+console.log('Firebase Firestore initialized with named database: twitter-tool');
 
 // OpenAI クライアントの初期化
 let openai = null;
@@ -623,12 +642,1603 @@ app.get('/api/health', (req, res) => {
     });
 });
 
+// TwitterAPI.io Webhook受信エンドポイント
+app.post('/webhook/twitter', (req, res) => {
+    try {
+        console.log('🎯 Webhook received from TwitterAPI.io');
+        console.log('Headers:', JSON.stringify(req.headers, null, 2));
+        console.log('Body:', JSON.stringify(req.body, null, 2));
+        
+        const webhookData = req.body;
+        
+        // Webhookデータの構造を確認
+        if (webhookData.tweets && Array.isArray(webhookData.tweets)) {
+            console.log(`📢 Webhook: ${webhookData.tweets.length} new tweets received`);
+            
+            webhookData.tweets.forEach((tweet, index) => {
+                console.log(`Tweet ${index + 1}: @${tweet.author?.userName}: ${tweet.text?.substring(0, 100)}...`);
+                
+                // WebSocketクライアントに転送
+                broadcastToClients({
+                    type: 'tweet',
+                    tweet: tweet,
+                    source: 'webhook',
+                    timestamp: new Date().toISOString()
+                });
+            });
+        } else if (webhookData.tweet) {
+            // 単一ツイートの場合
+            console.log(`📢 Webhook: Single tweet from @${webhookData.tweet.author?.userName}`);
+            
+            broadcastToClients({
+                type: 'tweet',
+                tweet: webhookData.tweet,
+                source: 'webhook',
+                timestamp: new Date().toISOString()
+            });
+        } else {
+            console.log('📋 Webhook: Unknown data structure');
+            console.log('Data:', webhookData);
+            
+            // ログとして表示
+            broadcastToClients({
+                type: 'webhook_data',
+                data: webhookData,
+                timestamp: new Date().toISOString()
+            });
+        }
+        
+        // TwitterAPI.ioに成功レスポンスを返す
+        res.status(200).json({ 
+            success: true, 
+            message: 'Webhook received successfully',
+            timestamp: new Date().toISOString()
+        });
+        
+    } catch (error) {
+        console.error('❌ Webhook processing error:', error);
+        res.status(500).json({ 
+            success: false, 
+            error: error.message 
+        });
+    }
+});
+
+// Webhook テストエンドポイント
+app.post('/webhook/test', (req, res) => {
+    console.log('🧪 Test webhook called');
+    console.log('Body:', req.body);
+    
+    broadcastToClients({
+        type: 'status',
+        message: 'テストWebhookが正常に受信されました',
+        data: req.body
+    });
+    
+    res.json({ success: true, message: 'Test webhook received' });
+});
+
 // HTMLファイルを提供
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-app.listen(PORT, () => {
+// HTTPサーバーを作成
+const server = http.createServer(app);
+
+// WebSocketサーバーを作成（Vercel環境では動作しない）
+let wss = null;
+if (process.env.NODE_ENV !== 'production' && !process.env.VERCEL) {
+    wss = new WebSocket.Server({ server });
+} else {
+    console.log('🔄 Running in production/Vercel mode - WebSocket disabled, using polling mode');
+}
+
+// Twitter WebSocket接続管理
+let twitterWs = null;
+let currentMonitoringUsername = null;
+let connectedClients = new Set();
+
+// WebSocket接続ハンドラー（ローカル環境のみ）
+if (wss) {
+    wss.on('connection', (ws) => {
+    console.log('New WebSocket client connected');
+    connectedClients.add(ws);
+    
+    // クライアントに接続成功を通知
+    ws.send(JSON.stringify({
+        type: 'status',
+        message: 'WebSocket接続が確立されました'
+    }));
+    
+    ws.on('message', async (message) => {
+        try {
+            const data = JSON.parse(message);
+            console.log('Received message from client:', data);
+            
+            if (data.action === 'monitor' && data.username) {
+                // Webhookが既に動作しているので、WebSocket接続のみ確立
+                console.log(`📡 WebSocket monitoring enabled for: @${data.username}`);
+                currentMonitoringUsername = data.username;
+                
+                ws.send(JSON.stringify({
+                    type: 'status',
+                    message: `@${data.username} の監視を開始しました (Webhook経由)`
+                }));
+            }
+        } catch (error) {
+            console.error('WebSocket message error:', error);
+            ws.send(JSON.stringify({
+                type: 'error',
+                message: 'メッセージの処理中にエラーが発生しました'
+            }));
+        }
+    });
+    
+    ws.on('close', () => {
+        console.log('WebSocket client disconnected');
+        connectedClients.delete(ws);
+        
+        // 最後のクライアントが切断された場合、Twitter監視を停止
+        if (connectedClients.size === 0 && twitterWs) {
+            stopTwitterMonitoring();
+        }
+    });
+    
+    ws.on('error', (error) => {
+        console.error('WebSocket error:', error);
+        connectedClients.delete(ws);
+    });
+    });
+}
+
+// Twitter WebSocket監視を開始 (修正版：フィルタールール事前設定方式)
+async function startTwitterMonitoring(username) {
+    try {
+        if (twitterWs) {
+            console.log('Stopping existing Twitter monitoring...');
+            twitterWs.close();
+            twitterWs = null;
+        }
+        
+        console.log(`🚀 Starting Twitter monitoring for: @${username}`);
+        currentMonitoringUsername = username;
+        
+        // Step 1: 事前にREST APIでフィルタールールを設定
+        console.log(`📝 Setting up filter rule via REST API for @${username}...`);
+        const ruleSetup = await setupFilterRuleForWebSocket(username);
+        
+        if (!ruleSetup.success) {
+            throw new Error(`Filter rule setup failed: ${ruleSetup.error}`);
+        }
+        
+        console.log(`✅ Filter rule setup completed: ${JSON.stringify(ruleSetup)}`);
+        
+        // Step 2: WebSocket接続を開始
+        const possibleEndpoints = [
+            'wss://ws.twitterapi.io/twitter/tweet/websocket',
+            'wss://api.twitterapi.io/websocket', 
+            'wss://stream.twitterapi.io/twitter/tweet/websocket',
+            'wss://ws.twitterapi.io/websocket'
+        ];
+        
+        let connectedSuccessfully = false;
+        
+        for (const endpoint of possibleEndpoints) {
+            if (connectedSuccessfully) break;
+            
+            try {
+                console.log(`🔌 Trying WebSocket endpoint: ${endpoint}`);
+                
+                // TwitterAPI.io WebSocketに接続
+                twitterWs = new WebSocket(endpoint, {
+                    headers: {
+                        'X-API-Key': process.env.TWITTER_API_KEY,
+                        'Authorization': `Bearer ${process.env.TWITTER_API_KEY}`,
+                        'User-Agent': 'TwitterMonitor/1.0'
+                    }
+                });
+                
+                await new Promise((resolve, reject) => {
+                    const timeout = setTimeout(() => {
+                        reject(new Error('Connection timeout'));
+                    }, 10000);
+                    
+                    twitterWs.on('open', () => {
+                        clearTimeout(timeout);
+                        console.log(`✅ Successfully connected to TwitterAPI.io WebSocket: ${endpoint}`);
+                        connectedSuccessfully = true;
+                        
+                        // WebSocket接続後はフィルタールール送信不要（事前設定済み）
+                        console.log(`📡 Connected and ready to receive tweets for @${username}`);
+                        console.log(`⏳ Waiting for tweets based on pre-configured filter rule...`);
+                        
+                        // クライアントに通知
+                        broadcastToClients({
+                            type: 'status',
+                            message: `@${username} の監視を開始しました (Endpoint: ${endpoint})`,
+                            filterRule: ruleSetup.rule
+                        });
+                        
+                        resolve();
+                    });
+                    
+                    twitterWs.on('error', (error) => {
+                        clearTimeout(timeout);
+                        console.log(`❌ Failed to connect to ${endpoint}:`, error.message);
+                        reject(error);
+                    });
+                });
+                
+                // 接続成功したらメッセージハンドラーを設定
+                twitterWs.on('message', (message) => {
+                    try {
+                        const data = JSON.parse(message);
+                        
+                        // 全メッセージを詳細ログ出力
+                        console.log('=== TwitterAPI.io WebSocket Message ===');
+                        console.log('Raw message:', message.toString());
+                        console.log('Parsed data:', JSON.stringify(data, null, 2));
+                        console.log('Message type detected:', typeof data);
+                        console.log('=======================================');
+                        
+                        // ルール追加の成功/失敗を確認
+                        if (data.action === 'add_rule' || data.type === 'rule_added') {
+                            console.log('✅ Rule addition response:', data);
+                            broadcastToClients({
+                                type: 'rule_status',
+                                message: `フィルタールール追加: ${data.success ? '成功' : '失敗'}`,
+                                data: data
+                            });
+                        }
+                        
+                        // ツイートデータをクライアントに転送
+                        if (data.event_type === 'tweet' || data.type === 'tweet') {
+                            const tweets = data.tweets || (data.tweet ? [data.tweet] : []);
+                            if (tweets.length > 0) {
+                                const tweet = tweets[0];
+                                console.log(`🐦 New tweet from @${tweet.author?.userName || tweet.user?.screen_name}: ${tweet.text?.substring(0, 100)}...`);
+                                
+                                broadcastToClients({
+                                    type: 'tweet',
+                                    tweet: tweet
+                                });
+                            }
+                        } else if (data.event_type === 'ping' || data.type === 'ping') {
+                            console.log('📡 Received ping from TwitterAPI.io');
+                            broadcastToClients({
+                                type: 'ping',
+                                message: 'TwitterAPI.io接続正常'
+                            });
+                        } else if (data.error || data.errors) {
+                            const errorMsg = data.error || (data.errors && data.errors[0]?.message) || 'Unknown error';
+                            console.error('❌ TwitterAPI.io error:', errorMsg);
+                            broadcastToClients({
+                                type: 'error',
+                                message: `TwitterAPI.io エラー: ${errorMsg}`,
+                                data: data
+                            });
+                        } else if (data.status || data.message) {
+                            console.log('ℹ️  TwitterAPI.io status:', data.status || data.message);
+                            broadcastToClients({
+                                type: 'status',
+                                message: data.status || data.message,
+                                data: data
+                            });
+                        } else {
+                            // 未知のメッセージタイプ
+                            console.log('❓ Unknown message type from TwitterAPI.io:', data);
+                            broadcastToClients({
+                                type: 'unknown',
+                                message: 'Unknown message received',
+                                data: data
+                            });
+                        }
+                    } catch (error) {
+                        console.error('Error parsing TwitterAPI.io message:', error);
+                        console.log('Raw message that failed to parse:', message.toString());
+                        broadcastToClients({
+                            type: 'error',
+                            message: `メッセージ解析エラー: ${error.message}`
+                        });
+                    }
+                });
+                
+                break; // 成功したらループを抜ける
+                
+            } catch (error) {
+                console.log(`Failed to connect to ${endpoint}:`, error.message);
+                if (twitterWs) {
+                    twitterWs.close();
+                    twitterWs = null;
+                }
+                continue;
+            }
+        }
+        
+        if (!connectedSuccessfully) {
+            throw new Error('All WebSocket endpoints failed to connect');
+        }
+        
+        twitterWs.on('error', (error) => {
+            console.error('TwitterAPI.io WebSocket error:', error);
+            broadcastToClients({
+                type: 'error',
+                message: `Twitter監視エラー: ${error.message}`
+            });
+        });
+        
+        twitterWs.on('close', (code, reason) => {
+            console.log(`TwitterAPI.io WebSocket closed: ${code} - ${reason}`);
+            console.log('Close code meanings:');
+            console.log('  1000: Normal closure');
+            console.log('  1001: Going away');
+            console.log('  1002: Protocol error');
+            console.log('  1003: Unsupported data');
+            console.log('  1006: Abnormal closure (no close frame)');
+            console.log('  1011: Server error');
+            
+            broadcastToClients({
+                type: 'status',
+                message: `Twitter監視が停止されました (Code: ${code})`
+            });
+            
+            twitterWs = null;
+            currentMonitoringUsername = null;
+            
+            // 異常終了の場合は再接続を試行
+            if (code !== 1000 && connectedClients.size > 0) {
+                console.log('Attempting to reconnect in 15 seconds...');
+                setTimeout(() => {
+                    if (connectedClients.size > 0 && !twitterWs) {
+                        startTwitterMonitoring(username);
+                    }
+                }, 15000);
+            }
+        });
+        
+    } catch (error) {
+        console.error('Error starting Twitter monitoring:', error);
+        broadcastToClients({
+            type: 'error',
+            message: `監視開始エラー: ${error.message}`
+        });
+    }
+}
+
+// Twitter WebSocket監視を停止
+function stopTwitterMonitoring() {
+    if (twitterWs) {
+        console.log('Stopping Twitter monitoring...');
+        
+        // ルールを削除
+        if (currentMonitoringUsername) {
+            const removeRule = {
+                query: `from:${currentMonitoringUsername}`,
+                action: 'remove_rule'
+            };
+            twitterWs.send(JSON.stringify(removeRule));
+        }
+        
+        twitterWs.close(1000, 'Monitoring stopped by user');
+        twitterWs = null;
+        currentMonitoringUsername = null;
+        
+        broadcastToClients({
+            type: 'status',
+            message: 'Twitter監視が停止されました'
+        });
+    }
+}
+
+// Firestoreにツイートを保存する関数
+async function saveTweetToFirestore(tweet) {
+    try {
+        const tweetData = {
+            ...tweet,
+            receivedAt: Date.now(),
+            createdAtFirestore: new Date()
+        };
+        
+        const docRef = await addDoc(collection(db, 'realtime-tweets'), tweetData);
+        console.log(`🔥 Tweet saved to Firestore with ID: ${docRef.id}`);
+        
+        // 古いツイートを削除（最新50件のみ保持）
+        await cleanupOldTweets();
+        
+    } catch (error) {
+        console.error('❌ Error saving tweet to Firestore:', error);
+    }
+}
+
+// 古いツイートを削除する関数
+async function cleanupOldTweets() {
+    try {
+        const tweetsRef = collection(db, 'realtime-tweets');
+        const q = query(tweetsRef, orderBy('receivedAt', 'desc'));
+        const querySnapshot = await getDocs(q);
+        
+        if (querySnapshot.size > 50) {
+            const batch = writeBatch(db);
+            const docsToDelete = querySnapshot.docs.slice(50); // 50件以降を削除
+            
+            docsToDelete.forEach((doc) => {
+                batch.delete(doc.ref);
+            });
+            
+            await batch.commit();
+            console.log(`🧹 Deleted ${docsToDelete.length} old tweets from Firestore`);
+        }
+    } catch (error) {
+        console.error('❌ Error cleaning up old tweets:', error);
+    }
+}
+
+// 全てのクライアントにメッセージをブロードキャスト
+async function broadcastToClients(message) {
+    const messageStr = JSON.stringify(message);
+    console.log(`📡 Broadcasting to ${connectedClients.size} clients:`, message.type || 'unknown');
+    
+    // Vercel環境では、リアルタイムツイートをFirestoreに保存
+    if (message.type === 'tweet' && message.tweet) {
+        // メモリバッファにも保存（ローカル環境用）
+        recentTweets.unshift({
+            ...message.tweet,
+            receivedAt: Date.now()
+        });
+        
+        // 最大50件まで保持
+        if (recentTweets.length > 50) {
+            recentTweets = recentTweets.slice(0, 50);
+        }
+        
+        // Firestoreに永続化（Vercel環境用）
+        await saveTweetToFirestore(message.tweet);
+        
+        console.log(`🐦 Tweet buffered locally (${recentTweets.length} items) and saved to Firestore`);
+    }
+    
+    // WebSocketクライアントがある場合は従来通り送信
+    if (connectedClients.size === 0) {
+        console.log('⚠️ No WebSocket clients connected, tweet saved to buffer and Firestore for polling');
+        return;
+    }
+    
+    connectedClients.forEach((client) => {
+        if (client.type === 'sse') {
+            // Server-Sent Events クライアント
+            try {
+                client.res.write(`data: ${messageStr}\n\n`);
+                console.log('✅ Message sent to SSE client');
+            } catch (error) {
+                console.log('❌ SSE client error, removing from connectedClients');
+                connectedClients.delete(client);
+            }
+        } else if (client.readyState === WebSocket.OPEN) {
+            // WebSocket クライアント
+            client.send(messageStr);
+            console.log('✅ Message sent to WebSocket client');
+        } else {
+            console.log('❌ Client not ready, removing from connectedClients');
+            connectedClients.delete(client);
+        }
+    });
+}
+
+// Server-Sent Events エンドポイント（Vercel対応）
+app.get('/api/realtime/stream', (req, res) => {
+    // SSE用のヘッダーを設定
+    res.writeHead(200, {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        'Connection': 'keep-alive',
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Headers': 'Cache-Control'
+    });
+
+    // SSEクライアントを接続リストに追加
+    const clientId = Date.now() + Math.random();
+    const sseClient = { id: clientId, res, type: 'sse' };
+    connectedClients.add(sseClient);
+    
+    console.log(`SSE client connected: ${clientId}`);
+    
+    // 接続確認メッセージを送信
+    res.write(`data: ${JSON.stringify({
+        type: 'connection',
+        message: 'Server-Sent Events接続が確立されました',
+        timestamp: Date.now()
+    })}\n\n`);
+    
+    // ハートビート（30秒間隔）
+    const heartbeat = setInterval(() => {
+        try {
+            res.write(`data: ${JSON.stringify({
+                type: 'ping',
+                timestamp: Date.now()
+            })}\n\n`);
+        } catch (error) {
+            console.log(`SSE heartbeat failed for client ${clientId}`);
+            clearInterval(heartbeat);
+            connectedClients.delete(sseClient);
+        }
+    }, 30000);
+    
+    // クライアント切断時の処理
+    req.on('close', () => {
+        console.log(`SSE client disconnected: ${clientId}`);
+        clearInterval(heartbeat);
+        connectedClients.delete(sseClient);
+    });
+    
+    req.on('error', (error) => {
+        console.log(`SSE client error: ${clientId}`, error);
+        clearInterval(heartbeat);
+        connectedClients.delete(sseClient);
+    });
+});
+
+// Vercel環境用：ポーリングベースのリアルタイム更新エンドポイント
+// 最新ツイートを取得するAPIエンドポイント
+app.get('/api/realtime/latest', async (req, res) => {
+    try {
+        // 環境の検出
+        const isVercel = process.env.VERCEL || req.headers.host?.includes('vercel.app');
+        
+        let latestTweets = [];
+        
+        if (isVercel) {
+            // Vercel環境：Firestoreから取得
+            console.log('🔥 Vercel environment detected, fetching tweets from Firestore');
+            try {
+                const tweetsRef = collection(db, 'realtime-tweets');
+                const q = query(tweetsRef, orderBy('receivedAt', 'desc'), limit(10));
+                const querySnapshot = await getDocs(q);
+                
+                latestTweets = querySnapshot.docs.map(doc => ({
+                    id: doc.id,
+                    ...doc.data()
+                }));
+                
+                console.log(`📥 Retrieved ${latestTweets.length} tweets from Firestore`);
+            } catch (firestoreError) {
+                console.error('❌ Firestore error, falling back to memory buffer:', firestoreError);
+                latestTweets = recentTweets.slice(0, 10);
+            }
+        } else {
+            // ローカル環境：メモリから取得
+            console.log('💻 Local environment detected, using in-memory buffer');
+            latestTweets = recentTweets.slice(0, 10);
+        }
+        
+        res.json({
+            success: true,
+            latestTweets: latestTweets,
+            timestamp: Date.now(),
+            isMonitoring: !!currentMonitoringUsername,
+            monitoringUser: currentMonitoringUsername,
+            environment: isVercel ? 'vercel' : 'local',
+            source: isVercel ? 'firestore' : 'memory'
+        });
+        
+    } catch (error) {
+        console.error('❌ Error fetching latest tweets:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to fetch latest tweets',
+            message: error.message
+        });
+    }
+});
+
+// Firestoreのツイート確認用デバッグエンドポイント
+app.get('/api/debug/firestore-tweets', async (req, res) => {
+    try {
+        const tweetsRef = collection(db, 'realtime-tweets');
+        const q = query(tweetsRef, orderBy('receivedAt', 'desc'), limit(20));
+        const querySnapshot = await getDocs(q);
+        
+        const tweets = querySnapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data(),
+            createdAtFirestore: doc.data().createdAtFirestore?.toDate()?.toISOString()
+        }));
+        
+        res.json({
+            success: true,
+            totalCount: querySnapshot.size,
+            tweets: tweets,
+            timestamp: Date.now()
+        });
+        
+    } catch (error) {
+        console.error('❌ Error fetching Firestore tweets:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to fetch Firestore tweets',
+            message: error.message
+        });
+    }
+});
+
+// リアルタイムツイート用のバッファ
+let recentTweets = [];
+
+// WebSocket用フィルタールール事前設定関数
+async function setupFilterRuleForWebSocket(username) {
+    try {
+        console.log(`🔧 Setting up filter rule for WebSocket monitoring: @${username}`);
+        
+        // TwitterAPI.ioの正確なフィルタールールエンドポイント（ドキュメント準拠）
+        const possibleEndpoints = [
+            'https://api.twitterapi.io/oapi/tweet_filter/add_rule',
+            'https://api.twitterapi.io/oapi/tweet_filter/update_rule',
+            'https://api.twitterapi.io/twitter/webhook/filter-rule',
+            'https://api.twitterapi.io/webhook/filter-rule'
+        ];
+        
+        let response = null;
+        let lastError = null;
+        
+        for (const url of possibleEndpoints) {
+            try {
+                console.log(`📡 Trying filter rule setup endpoint: ${url}`);
+                
+                // TwitterAPI.ioの正確なフォーマットでリクエスト
+                const requestData = {
+                    query: `from:${username}`,
+                    isActive: true, // WebSocket用なので必ずアクティブ
+                    pollingInterval: 10, // 10秒間隔で高頻度チェック
+                    tag: `websocket_monitor_${username}_${Date.now()}`,
+                    webhook: null, // WebSocket用なのでwebhookは不要
+                    type: 'websocket' // WebSocketタイプを明示
+                };
+                
+                console.log(`📋 Request data:`, JSON.stringify(requestData, null, 2));
+                
+                response = await axios.post(url, requestData, {
+                    headers: {
+                        'X-API-Key': process.env.TWITTER_API_KEY,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                if (response && response.status === 200) {
+                    console.log(`✅ Success with endpoint: ${url}`);
+                    console.log(`📊 Response:`, JSON.stringify(response.data, null, 2));
+                    break;
+                }
+                
+            } catch (error) {
+                console.log(`❌ Failed endpoint ${url}:`, error.response?.status, error.response?.data?.message || error.message);
+                lastError = error;
+                continue;
+            }
+        }
+        
+        if (!response || response.status !== 200) {
+            throw lastError || new Error('All filter rule setup endpoints failed');
+        }
+        
+        console.log(`🎉 Filter rule setup successful for @${username}`);
+        return {
+            success: true,
+            username: username,
+            rule: response.data,
+            endpoint: response.config?.url || 'unknown'
+        };
+        
+    } catch (error) {
+        console.error('❌ Filter Rule Setup Error:', error.response?.data || error.message);
+        return {
+            success: false,
+            error: error.response?.data?.message || error.message,
+            username: username
+        };
+    }
+}
+
+
+// REST APIによるフィルタールール管理
+app.post('/api/twitter/filter-rule', async (req, res) => {
+    try {
+        const { username, action = 'add' } = req.body;
+        
+        if (!username) {
+            return res.status(400).json({ error: 'Username parameter is required' });
+        }
+
+        console.log(`${action} filter rule for: @${username}`);
+        
+        // TwitterAPI.ioの正確なフィルタールールエンドポイント（ドキュメント準拠）
+        const possibleEndpoints = [
+            'https://api.twitterapi.io/oapi/tweet_filter/add_rule',
+            'https://api.twitterapi.io/oapi/tweet_filter/update_rule',
+            'https://api.twitterapi.io/twitter/webhook/filter-rule',
+            'https://api.twitterapi.io/webhook/filter-rule'
+        ];
+        
+        let response = null;
+        let lastError = null;
+        
+        for (const url of possibleEndpoints) {
+            try {
+                console.log(`Trying filter rule endpoint: ${url}`);
+                
+                // TwitterAPI.ioの正確なフォーマットでリクエスト
+                const requestData = {
+                    query: `from:${username}`,
+                    isActive: action === 'add',
+                    pollingInterval: 60, // 60秒間隔
+                    tag: `monitor_${username}_${Date.now()}`
+                };
+                
+                if (action === 'add') {
+                    response = await axios.post(url, requestData, {
+                        headers: {
+                            'X-API-Key': process.env.TWITTER_API_KEY,
+                            'Content-Type': 'application/json'
+                        }
+                    });
+                } else if (action === 'remove') {
+                    response = await axios.delete(url, {
+                        data: requestData,
+                        headers: {
+                            'X-API-Key': process.env.TWITTER_API_KEY,
+                            'Content-Type': 'application/json'
+                        }
+                    });
+                }
+                
+                if (response && response.status === 200) {
+                    console.log(`Success with endpoint: ${url}`);
+                    break;
+                }
+                
+            } catch (error) {
+                console.log(`Failed endpoint ${url}:`, error.response?.status || error.message);
+                lastError = error;
+                continue;
+            }
+        }
+        
+        if (!response || response.status !== 200) {
+            throw lastError || new Error('All filter rule endpoints failed');
+        }
+        
+        console.log(`Filter rule ${action} successful for @${username}`);
+        res.json({
+            success: true,
+            action: action,
+            username: username,
+            response: response.data
+        });
+        
+    } catch (error) {
+        console.error('Filter Rule API Error:', error.response?.data || error.message);
+        res.status(error.response?.status || 500).json({
+            success: false,
+            error: error.response?.data || { 
+                message: error.message,
+                note: 'Filter rule endpoint may not be available. Using WebSocket-based filtering.'
+            }
+        });
+    }
+});
+
+// フィルタールール一覧取得
+app.get('/api/twitter/filter-rules', async (req, res) => {
+    try {
+        console.log('Fetching all filter rules...');
+        
+        const possibleEndpoints = [
+            'https://api.twitterapi.io/twitter/webhook/filter-rule',
+            'https://api.twitterapi.io/webhook/filter-rule',
+            'https://api.twitterapi.io/twitter/filter-rule',
+            'https://api.twitterapi.io/filter-rule'
+        ];
+        
+        let response = null;
+        let lastError = null;
+        
+        for (const url of possibleEndpoints) {
+            try {
+                console.log(`Trying get rules endpoint: ${url}`);
+                
+                response = await axios.get(url, {
+                    headers: {
+                        'X-API-Key': process.env.TWITTER_API_KEY,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                if (response && response.status === 200) {
+                    console.log(`Success with endpoint: ${url}`);
+                    break;
+                }
+                
+            } catch (error) {
+                console.log(`Failed endpoint ${url}:`, error.response?.status || error.message);
+                lastError = error;
+                continue;
+            }
+        }
+        
+        if (!response || response.status !== 200) {
+            throw lastError || new Error('All filter rule endpoints failed');
+        }
+        
+        console.log('Filter rules fetched successfully');
+        res.json({
+            success: true,
+            rules: response.data
+        });
+        
+    } catch (error) {
+        console.error('Get Filter Rules API Error:', error.response?.data || error.message);
+        res.status(error.response?.status || 500).json({
+            success: false,
+            error: error.response?.data || { 
+                message: error.message,
+                note: 'Filter rules endpoint may not be available.'
+            }
+        });
+    }
+});
+
+// WebSocket監視ステータス取得
+app.get('/api/twitter/websocket/status', (req, res) => {
+    res.json({
+        isMonitoring: !!twitterWs && twitterWs.readyState === WebSocket.OPEN,
+        currentUsername: currentMonitoringUsername,
+        connectedClients: connectedClients.size,
+        twitterConnectionState: twitterWs ? twitterWs.readyState : 'not connected',
+        readyStates: {
+            0: 'CONNECTING',
+            1: 'OPEN', 
+            2: 'CLOSING',
+            3: 'CLOSED'
+        }
+    });
+});
+
+// WebSocket診断エンドポイント
+app.post('/api/twitter/websocket/diagnose', async (req, res) => {
+    try {
+        const { username } = req.body;
+        
+        if (!username) {
+            return res.status(400).json({ error: 'Username parameter is required' });
+        }
+        
+        console.log(`🔍 Running comprehensive WebSocket diagnosis for @${username}`);
+        
+        const diagnosis = {
+            timestamp: new Date().toISOString(),
+            username: username,
+            tests: {}
+        };
+        
+        // Test 1: REST API検索確認
+        console.log('📋 Test 1: REST API Search Test');
+        try {
+            const searchResponse = await axios.get('https://api.twitterapi.io/twitter/tweet/advanced_search', {
+                params: { 
+                    query: `from:${username}`,
+                    count: 3
+                },
+                headers: {
+                    'X-API-Key': process.env.TWITTER_API_KEY,
+                    'Content-Type': 'application/json'
+                }
+            });
+            
+            diagnosis.tests.restApiSearch = {
+                success: true,
+                tweetsFound: searchResponse.data.tweets?.length || 0,
+                latestTweet: searchResponse.data.tweets?.[0]?.text?.substring(0, 100) || null
+            };
+            console.log(`✅ REST API Search: Found ${diagnosis.tests.restApiSearch.tweetsFound} tweets`);
+        } catch (error) {
+            diagnosis.tests.restApiSearch = {
+                success: false,
+                error: error.response?.data || error.message
+            };
+            console.log(`❌ REST API Search failed:`, error.message);
+        }
+        
+        // Test 2: フィルタールール設定テスト
+        console.log('📋 Test 2: Filter Rule Setup Test');
+        const ruleTest = await setupFilterRuleForWebSocket(username);
+        diagnosis.tests.filterRuleSetup = ruleTest;
+        
+        // Test 3: WebSocket接続テスト
+        console.log('📋 Test 3: WebSocket Connection Test');
+        try {
+            const wsEndpoint = 'wss://ws.twitterapi.io/twitter/tweet/websocket';
+            const testWs = new WebSocket(wsEndpoint, {
+                headers: {
+                    'X-API-Key': process.env.TWITTER_API_KEY,
+                    'User-Agent': 'TwitterMonitor-Diagnosis/1.0'
+                }
+            });
+            
+            const wsTest = await new Promise((resolve) => {
+                const timeout = setTimeout(() => {
+                    resolve({
+                        success: false,
+                        error: 'Connection timeout'
+                    });
+                }, 10000);
+                
+                testWs.on('open', () => {
+                    clearTimeout(timeout);
+                    console.log('✅ WebSocket connection successful');
+                    testWs.close();
+                    resolve({
+                        success: true,
+                        endpoint: wsEndpoint
+                    });
+                });
+                
+                testWs.on('error', (error) => {
+                    clearTimeout(timeout);
+                    console.log('❌ WebSocket connection failed:', error.message);
+                    resolve({
+                        success: false,
+                        error: error.message
+                    });
+                });
+            });
+            
+            diagnosis.tests.websocketConnection = wsTest;
+        } catch (error) {
+            diagnosis.tests.websocketConnection = {
+                success: false,
+                error: error.message
+            };
+        }
+        
+        // 診断結果の評価
+        const allTestsPassed = Object.values(diagnosis.tests).every(test => test.success);
+        diagnosis.overall = {
+            status: allTestsPassed ? 'HEALTHY' : 'ISSUES_DETECTED',
+            recommendation: allTestsPassed 
+                ? 'WebSocket monitoring should work properly' 
+                : 'Issues detected, check individual test results'
+        };
+        
+        console.log(`🏁 Diagnosis complete: ${diagnosis.overall.status}`);
+        res.json(diagnosis);
+        
+    } catch (error) {
+        console.error('Diagnosis error:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+});
+
+// TwitterAPI.ioの検索エンドポイントでテスト（代替手段）
+app.post('/api/twitter/test-user-tweets', async (req, res) => {
+    try {
+        const { username } = req.body;
+        
+        if (!username) {
+            return res.status(400).json({ error: 'Username parameter is required' });
+        }
+        
+        console.log(`🧪 Testing REST API search for @${username}`);
+        
+        // REST APIで最新ツイートを取得してテスト
+        const response = await axios.get('https://api.twitterapi.io/twitter/tweet/advanced_search', {
+            params: { 
+                query: `from:${username}`,
+                count: 5
+            },
+            headers: {
+                'X-API-Key': process.env.TWITTER_API_KEY,
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        const tweets = response.data.tweets || [];
+        console.log(`Found ${tweets.length} recent tweets for @${username}`);
+        
+        if (tweets.length > 0) {
+            console.log('Latest tweet:', tweets[0].text?.substring(0, 100) + '...');
+        }
+        
+        res.json({
+            success: true,
+            username: username,
+            recentTweets: tweets.length,
+            latestTweet: tweets[0] || null,
+            message: `@${username} からの最新ツイート ${tweets.length} 件を取得しました`
+        });
+        
+    } catch (error) {
+        console.error('User tweets test error:', error.response?.data || error.message);
+        res.status(error.response?.status || 500).json({
+            success: false,
+            error: error.response?.data || { message: error.message }
+        });
+    }
+});
+
+// 高頻度ポーリング代替実装（WebSocketが機能しない場合）
+let pollingInterval = null;
+let lastTweetId = null;
+
+app.post('/api/twitter/start-polling', async (req, res) => {
+    try {
+        const { username, intervalSeconds = 30 } = req.body;
+        
+        if (!username) {
+            return res.status(400).json({ error: 'Username parameter is required' });
+        }
+        
+        // 既存のポーリングを停止
+        if (pollingInterval) {
+            clearInterval(pollingInterval);
+            pollingInterval = null;
+        }
+        
+        console.log(`🔄 Starting high-frequency polling for @${username} every ${intervalSeconds} seconds`);
+        currentMonitoringUsername = username;
+        lastTweetId = null;
+        
+        // 初回実行
+        await pollUserTweets(username);
+        
+        // 定期実行開始
+        pollingInterval = setInterval(async () => {
+            await pollUserTweets(username);
+        }, intervalSeconds * 1000);
+        
+        res.json({
+            success: true,
+            message: `Polling started for @${username}`,
+            intervalSeconds: intervalSeconds,
+            status: 'active'
+        });
+        
+    } catch (error) {
+        console.error('Polling start error:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+});
+
+app.post('/api/twitter/stop-polling', (req, res) => {
+    if (pollingInterval) {
+        clearInterval(pollingInterval);
+        pollingInterval = null;
+        currentMonitoringUsername = null;
+        lastTweetId = null;
+        
+        console.log('🛑 Polling stopped');
+        
+        broadcastToClients({
+            type: 'status',
+            message: 'ポーリング監視が停止されました'
+        });
+        
+        res.json({
+            success: true,
+            message: 'Polling stopped'
+        });
+    } else {
+        res.json({
+            success: true,
+            message: 'No active polling to stop'
+        });
+    }
+});
+
+async function pollUserTweets(username) {
+    try {
+        console.log(`🔍 Polling tweets for @${username}...`);
+        
+        const response = await axios.get('https://api.twitterapi.io/twitter/tweet/advanced_search', {
+            params: { 
+                query: `from:${username}`,
+                count: 5,
+                queryType: 'Latest'
+            },
+            headers: {
+                'X-API-Key': process.env.TWITTER_API_KEY,
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        const tweets = response.data.tweets || [];
+        
+        if (tweets.length > 0) {
+            const latestTweet = tweets[0];
+            const tweetId = latestTweet.id || latestTweet.id_str;
+            
+            // 新しいツイートかチェック
+            if (!lastTweetId || tweetId !== lastTweetId) {
+                console.log(`🐦 New tweet detected from @${username}: ${latestTweet.text?.substring(0, 100)}...`);
+                
+                // WebSocketクライアントに通知
+                broadcastToClients({
+                    type: 'tweet',
+                    source: 'polling',
+                    tweet: latestTweet,
+                    username: username
+                });
+                
+                lastTweetId = tweetId;
+            } else {
+                console.log(`📭 No new tweets from @${username}`);
+            }
+        } else {
+            console.log(`❌ No tweets found for @${username}`);
+        }
+        
+    } catch (error) {
+        console.error(`Error polling tweets for @${username}:`, error.message);
+        broadcastToClients({
+            type: 'error',
+            message: `ポーリングエラー: ${error.message}`,
+            username: username
+        });
+    }
+}
+
+// ハイブリッド監視システム用の変数
+let pollingIntervals = new Map(); // username -> intervalId のマッピング
+let lastTweetIds = new Map(); // username -> lastTweetId のマッピング
+let webhookRules = new Map(); // username -> ruleId のマッピング
+
+// TwitterAPI.io 正式なWebhookフィルタールール追加
+app.post('/api/twitter/webhook-rule', async (req, res) => {
+    try {
+        const { username, intervalSeconds = 100 } = req.body;
+        
+        if (!username) {
+            return res.status(400).json({ error: 'Username parameter is required' });
+        }
+        
+        console.log(`🔧 Adding Webhook Filter Rule for @${username}`);
+        
+        const endpoint = 'https://api.twitterapi.io/oapi/tweet_filter/add_rule';
+        
+        const requestBody = {
+            tag: `monitor_${username}_${Date.now()}`,
+            value: `from:${username}`,
+            interval_seconds: intervalSeconds // ユーザー選択の間隔を使用
+        };
+        
+        console.log(`📝 Sending request to ${endpoint}:`, JSON.stringify(requestBody, null, 2));
+        
+        const response = await axios.post(endpoint, requestBody, {
+            headers: {
+                'X-API-Key': process.env.TWITTER_API_KEY,
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        console.log(`✅ Webhook rule added successfully:`, response.data);
+        
+        // ルールIDを保存
+        if (response.data.rule_id) {
+            webhookRules.set(username, {
+                ruleId: response.data.rule_id,
+                tag: requestBody.tag,
+                filter: requestBody.value,
+                intervalSeconds: requestBody.interval_seconds
+            });
+        }
+        
+        // ルールを有効化する必要がある場合のメッセージ
+        let activationNote = '';
+        if (response.data.msg && response.data.msg.includes('not activated')) {
+            activationNote = ' (注意: ルールは作成されましたが、手動での有効化が必要な場合があります)';
+            console.log('⚠️ Rule created but not activated. Manual activation may be required.');
+        }
+        
+        res.json({
+            success: true,
+            username: username,
+            ruleId: response.data.rule_id,
+            status: response.data.status,
+            message: response.data.msg + activationNote,
+            tag: requestBody.tag,
+            filter: requestBody.value,
+            intervalSeconds: requestBody.interval_seconds
+        });
+        
+    } catch (error) {
+        console.error('❌ Webhook Filter Rule Error:', error.response?.data || error.message);
+        
+        // 詳細なエラー情報をログ出力
+        if (error.response) {
+            console.log('Response status:', error.response.status);
+            console.log('Response headers:', error.response.headers);
+            console.log('Response data:', error.response.data);
+        }
+        
+        res.status(error.response?.status || 500).json({
+            success: false,
+            error: error.response?.data || { 
+                message: error.message,
+                details: error.response?.data,
+                note: 'Webhook filter rule endpoint failed. Check API key and parameters.'
+            }
+        });
+    }
+});
+
+// TwitterAPI.io Webhookルール有効化
+app.post('/api/twitter/activate-webhook-rule', async (req, res) => {
+    try {
+        const { username, ruleId, tag, filter, intervalSeconds = 120 } = req.body;
+        
+        if (!username || !ruleId) {
+            return res.status(400).json({ error: 'Username and ruleId parameters are required' });
+        }
+        
+        console.log(`🔥 Activating Webhook Rule for @${username}, Rule ID: ${ruleId}`);
+        
+        const endpoint = 'https://api.twitterapi.io/oapi/tweet_filter/update_rule';
+        
+        const requestBody = {
+            rule_id: ruleId,
+            tag: tag || `monitor_${username}_${Date.now()}`,
+            value: filter || `from:${username}`,
+            interval_seconds: intervalSeconds, // ユーザー選択の間隔を使用
+            is_effect: 1 // 1 = アクティブ, 0 = 非アクティブ
+        };
+        
+        console.log(`📝 Sending activation request to ${endpoint}:`, JSON.stringify(requestBody, null, 2));
+        
+        const response = await axios.post(endpoint, requestBody, {
+            headers: {
+                'X-API-Key': process.env.TWITTER_API_KEY,
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        console.log(`✅ Webhook rule activated successfully:`, response.data);
+        
+        // アクティブ化されたルール情報を更新
+        if (webhookRules.has(username)) {
+            const ruleInfo = webhookRules.get(username);
+            ruleInfo.isActive = true;
+            ruleInfo.activatedAt = new Date().toISOString();
+            webhookRules.set(username, ruleInfo);
+        }
+        
+        res.json({
+            success: true,
+            username: username,
+            ruleId: response.data.rule_id || ruleId,
+            status: response.data.status,
+            message: response.data.msg || 'ルールが正常に有効化されました',
+            isActive: true,
+            activatedAt: new Date().toISOString()
+        });
+        
+    } catch (error) {
+        console.error('❌ Webhook Rule Activation Error:', error.response?.data || error.message);
+        
+        if (error.response) {
+            console.log('Response status:', error.response.status);
+            console.log('Response data:', error.response.data);
+        }
+        
+        res.status(error.response?.status || 500).json({
+            success: false,
+            error: error.response?.data || { 
+                message: error.message,
+                details: error.response?.data,
+                note: 'Webhook rule activation failed. Check rule_id and parameters.'
+            }
+        });
+    }
+});
+
+// 現在のWebhookルール一覧を取得
+app.get('/api/twitter/webhook-rules', async (req, res) => {
+    try {
+        console.log('📋 Fetching current webhook rules...');
+        
+        const endpoint = 'https://api.twitterapi.io/oapi/tweet_filter/get_rules';
+        
+        const response = await axios.get(endpoint, {
+            headers: {
+                'X-API-Key': process.env.TWITTER_API_KEY,
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        console.log('✅ Webhook rules fetched successfully');
+        console.log('Rules data:', JSON.stringify(response.data, null, 2));
+        
+        res.json({
+            success: true,
+            rules: response.data.rules || response.data,
+            totalCount: response.data.rules ? response.data.rules.length : (Array.isArray(response.data) ? response.data.length : 0),
+            timestamp: new Date().toISOString()
+        });
+        
+    } catch (error) {
+        console.error('❌ Failed to fetch webhook rules:', error.response?.data || error.message);
+        res.status(error.response?.status || 500).json({
+            success: false,
+            error: error.response?.data || { 
+                message: error.message,
+                details: 'Failed to fetch webhook rules from TwitterAPI.io'
+            }
+        });
+    }
+});
+
+// Webhookルールを削除
+app.delete('/api/twitter/webhook-rules/:ruleId', async (req, res) => {
+    try {
+        const { ruleId } = req.params;
+        console.log(`🗑️ Deleting webhook rule: ${ruleId}`);
+        
+        const endpoint = 'https://api.twitterapi.io/oapi/tweet_filter/delete_rule';
+        
+        const response = await axios.delete(endpoint, {
+            headers: {
+                'X-API-Key': process.env.TWITTER_API_KEY,
+                'Content-Type': 'application/json'
+            },
+            data: {
+                rule_id: ruleId
+            }
+        });
+        
+        console.log('✅ Webhook rule deleted successfully');
+        console.log('Delete response:', JSON.stringify(response.data, null, 2));
+        
+        res.json({
+            success: true,
+            ruleId: ruleId,
+            response: response.data,
+            message: 'Webhook rule deleted successfully',
+            timestamp: new Date().toISOString()
+        });
+        
+    } catch (error) {
+        console.error('❌ Failed to delete webhook rule:', error.response?.data || error.message);
+        res.status(error.response?.status || 500).json({
+            success: false,
+            error: error.response?.data || { 
+                message: error.message,
+                details: 'Failed to delete webhook rule from TwitterAPI.io'
+            }
+        });
+    }
+});
+
+// ポーリングベースのリアルタイム監視開始
+app.post('/api/twitter/start-polling', async (req, res) => {
+    try {
+        const { username, intervalSeconds = 30 } = req.body;
+        
+        if (!username) {
+            return res.status(400).json({ error: 'Username parameter is required' });
+        }
+        
+        // 既存のポーリングを停止
+        if (pollingIntervals.has(username)) {
+            clearInterval(pollingIntervals.get(username));
+            console.log(`⏹️ Stopped existing polling for @${username}`);
+        }
+        
+        console.log(`🔄 Starting high-frequency polling for @${username} every ${intervalSeconds} seconds`);
+        
+        // 初回ツイート取得で基準点を設定
+        try {
+            const initialResponse = await axios.get('https://api.twitterapi.io/twitter/tweet/advanced_search', {
+                params: { 
+                    query: `from:${username}`,
+                    count: 1
+                },
+                headers: {
+                    'X-API-Key': process.env.TWITTER_API_KEY,
+                    'Content-Type': 'application/json'
+                }
+            });
+            
+            const initialTweets = initialResponse.data.tweets || [];
+            if (initialTweets.length > 0) {
+                lastTweetIds.set(username, initialTweets[0].id);
+                console.log(`📌 Baseline set for @${username}: ${initialTweets[0].id}`);
+                console.log(`📝 Latest tweet: ${initialTweets[0].text?.substring(0, 100)}...`);
+            }
+        } catch (baselineError) {
+            console.warn(`⚠️ Could not set baseline for @${username}:`, baselineError.message);
+        }
+        
+        // ポーリング開始
+        const intervalId = setInterval(async () => {
+            try {
+                await checkForNewTweetsPolling(username);
+            } catch (error) {
+                console.error(`❌ Polling error for @${username}:`, error.message);
+            }
+        }, intervalSeconds * 1000);
+        
+        pollingIntervals.set(username, intervalId);
+        
+        // WebSocketクライアントに通知
+        broadcastToClients({
+            type: 'status',
+            message: `@${username} のハイブリッド監視を開始しました (ポーリング間隔: ${intervalSeconds}秒)`
+        });
+        
+        res.json({
+            success: true,
+            username: username,
+            intervalSeconds: intervalSeconds,
+            method: 'polling',
+            message: `ハイブリッド監視が開始されました`
+        });
+        
+    } catch (error) {
+        console.error('Polling start error:', error.response?.data || error.message);
+        res.status(error.response?.status || 500).json({
+            success: false,
+            error: error.response?.data || { message: error.message }
+        });
+    }
+});
+
+// ポーリングベースの監視停止
+app.post('/api/twitter/stop-polling', async (req, res) => {
+    try {
+        const { username } = req.body;
+        
+        if (!username) {
+            return res.status(400).json({ error: 'Username parameter is required' });
+        }
+        
+        if (pollingIntervals.has(username)) {
+            clearInterval(pollingIntervals.get(username));
+            pollingIntervals.delete(username);
+            lastTweetIds.delete(username);
+            
+            console.log(`⏹️ Stopped polling for @${username}`);
+            
+            broadcastToClients({
+                type: 'status',
+                message: `@${username} のポーリング監視を停止しました`
+            });
+            
+            res.json({
+                success: true,
+                message: `@${username} のポーリング監視を停止しました`
+            });
+        } else {
+            res.json({
+                success: false,
+                message: `@${username} のポーリング監視は実行されていません`
+            });
+        }
+        
+    } catch (error) {
+        console.error('Polling stop error:', error.message);
+        res.status(500).json({
+            success: false,
+            error: { message: error.message }
+        });
+    }
+});
+
+// 新しいツイートをチェックする関数（ポーリング用）
+async function checkForNewTweetsPolling(username) {
+    try {
+        console.log(`🔍 Checking for new tweets from @${username}...`);
+        
+        const response = await axios.get('https://api.twitterapi.io/twitter/tweet/advanced_search', {
+            params: { 
+                query: `from:${username}`,
+                count: 5 // 最新5件を取得
+            },
+            headers: {
+                'X-API-Key': process.env.TWITTER_API_KEY,
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        const tweets = response.data.tweets || [];
+        const lastKnownId = lastTweetIds.get(username);
+        
+        console.log(`📊 Retrieved ${tweets.length} tweets for @${username}, last known ID: ${lastKnownId}`);
+        
+        // 新しいツイートをフィルタリング
+        let newTweets = [];
+        if (lastKnownId) {
+            for (const tweet of tweets) {
+                if (tweet.id === lastKnownId) {
+                    console.log(`🛑 Reached known tweet: ${tweet.id}`);
+                    break; // 既知の最新ツイートに到達したら停止
+                }
+                newTweets.push(tweet);
+            }
+        } else if (tweets.length > 0) {
+            // 初回の場合は何もしない（ベースライン設定のみ）
+            console.log(`📌 Setting initial baseline: ${tweets[0].id}`);
+            lastTweetIds.set(username, tweets[0].id);
+            return;
+        }
+        
+        // 新しいツイートがあれば処理
+        if (newTweets.length > 0) {
+            console.log(`🎉 Found ${newTweets.length} new tweets for @${username}!`);
+            
+            // 最新のツイートIDを更新
+            lastTweetIds.set(username, newTweets[0].id);
+            
+            // 新しいツイートを時系列順（古い順）で送信
+            newTweets.reverse().forEach((tweet, index) => {
+                console.log(`📢 New tweet ${index + 1}/${newTweets.length}: @${tweet.author?.userName}: ${tweet.text?.substring(0, 100)}...`);
+                
+                broadcastToClients({
+                    type: 'tweet',
+                    tweet: tweet,
+                    source: 'polling',
+                    timestamp: new Date().toISOString()
+                });
+            });
+        } else {
+            console.log(`✅ No new tweets for @${username}`);
+        }
+        
+    } catch (error) {
+        console.error(`❌ Error checking tweets for @${username}:`, error.response?.data || error.message);
+        broadcastToClients({
+            type: 'error',
+            message: `ポーリングエラー: ${error.message}`,
+            username: username
+        });
+    }
+}
+
+// 全てのポーリングを停止する関数
+function stopAllPolling() {
+    console.log(`🛑 Stopping all polling (${pollingIntervals.size} active)`);
+    pollingIntervals.forEach((intervalId, username) => {
+        clearInterval(intervalId);
+        console.log(`⏹️ Stopped polling for @${username}`);
+    });
+    pollingIntervals.clear();
+    lastTweetIds.clear();
+}
+
+// サーバー終了時にポーリングをクリーンアップ
+process.on('SIGINT', () => {
+    console.log('🛑 Shutting down server...');
+    stopAllPolling();
+    process.exit(0);
+});
+
+process.on('SIGTERM', () => {
+    console.log('🛑 Shutting down server...');
+    stopAllPolling();
+    process.exit(0);
+});
+
+server.listen(PORT, () => {
     console.log(`Server is running on http://localhost:${PORT}`);
     console.log('API Key is configured:', !!process.env.TWITTER_API_KEY);
+    
+    if (wss) {
+        console.log('WebSocket server is ready (Local development mode)');
+        console.log('🚀 Hybrid monitoring system (WebSocket + High-frequency Polling) is ready');
+    } else {
+        console.log('Server-Sent Events ready (Production/Vercel mode)');
+        console.log('🚀 Production monitoring system (SSE + Webhook polling) is ready');
+    }
 });
