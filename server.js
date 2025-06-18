@@ -709,16 +709,22 @@ app.get('/', (req, res) => {
 // HTTPサーバーを作成
 const server = http.createServer(app);
 
-// WebSocketサーバーを作成
-const wss = new WebSocket.Server({ server });
+// WebSocketサーバーを作成（Vercel環境では動作しない）
+let wss = null;
+if (process.env.NODE_ENV !== 'production' && !process.env.VERCEL) {
+    wss = new WebSocket.Server({ server });
+} else {
+    console.log('🔄 Running in production/Vercel mode - WebSocket disabled, using polling mode');
+}
 
 // Twitter WebSocket接続管理
 let twitterWs = null;
 let currentMonitoringUsername = null;
 let connectedClients = new Set();
 
-// WebSocket接続ハンドラー
-wss.on('connection', (ws) => {
+// WebSocket接続ハンドラー（ローカル環境のみ）
+if (wss) {
+    wss.on('connection', (ws) => {
     console.log('New WebSocket client connected');
     connectedClients.add(ws);
     
@@ -766,7 +772,8 @@ wss.on('connection', (ws) => {
         console.error('WebSocket error:', error);
         connectedClients.delete(ws);
     });
-});
+    });
+}
 
 // Twitter WebSocket監視を開始 (修正版：フィルタールール事前設定方式)
 async function startTwitterMonitoring(username) {
@@ -1013,20 +1020,60 @@ function broadcastToClients(message) {
     console.log(`📡 Broadcasting to ${connectedClients.size} clients:`, message.type || 'unknown');
     
     if (connectedClients.size === 0) {
-        console.log('⚠️ No WebSocket clients connected to receive message');
+        console.log('⚠️ No clients connected to receive message');
         return;
     }
     
     connectedClients.forEach((client) => {
-        if (client.readyState === WebSocket.OPEN) {
+        if (client.type === 'sse') {
+            // Server-Sent Events クライアント
+            try {
+                client.res.write(`data: ${messageStr}\n\n`);
+                console.log('✅ Message sent to SSE client');
+            } catch (error) {
+                console.log('❌ SSE client error, removing from connectedClients');
+                connectedClients.delete(client);
+            }
+        } else if (client.readyState === WebSocket.OPEN) {
+            // WebSocket クライアント
             client.send(messageStr);
-            console.log('✅ Message sent to client');
+            console.log('✅ Message sent to WebSocket client');
         } else {
             console.log('❌ Client not ready, removing from connectedClients');
             connectedClients.delete(client);
         }
     });
 }
+
+// Vercel環境用：ポーリングベースのリアルタイム更新エンドポイント
+app.get('/api/realtime/tweets', (req, res) => {
+    // Server-Sent Events (SSE) を使用
+    res.writeHead(200, {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        'Connection': 'keep-alive',
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Headers': 'Cache-Control'
+    });
+
+    // クライアントを接続リストに追加
+    const clientId = Date.now();
+    connectedClients.add({ id: clientId, res, type: 'sse' });
+    
+    console.log(`SSE client connected: ${clientId}`);
+    
+    // 接続確認メッセージを送信
+    res.write(`data: ${JSON.stringify({
+        type: 'connection',
+        message: 'リアルタイム接続が確立されました'
+    })}\n\n`);
+    
+    // クライアント切断時の処理
+    req.on('close', () => {
+        console.log(`SSE client disconnected: ${clientId}`);
+        connectedClients.delete({ id: clientId, res, type: 'sse' });
+    });
+});
 
 // WebSocket用フィルタールール事前設定関数
 async function setupFilterRuleForWebSocket(username) {
@@ -1997,6 +2044,12 @@ process.on('SIGTERM', () => {
 server.listen(PORT, () => {
     console.log(`Server is running on http://localhost:${PORT}`);
     console.log('API Key is configured:', !!process.env.TWITTER_API_KEY);
-    console.log('WebSocket server is ready');
-    console.log('🚀 Hybrid monitoring system (WebSocket + High-frequency Polling) is ready');
+    
+    if (wss) {
+        console.log('WebSocket server is ready (Local development mode)');
+        console.log('🚀 Hybrid monitoring system (WebSocket + High-frequency Polling) is ready');
+    } else {
+        console.log('Server-Sent Events ready (Production/Vercel mode)');
+        console.log('🚀 Production monitoring system (SSE + Webhook polling) is ready');
+    }
 });

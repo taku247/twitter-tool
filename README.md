@@ -277,6 +277,66 @@ Twitter → TwitterAPI.io → Webhook → サーバー → WebSocket → ブラ�
    https://twitter-tool-eight.vercel.app/webhook/twitter
    ```
 
+#### コード実装について
+
+**重要**: 既存の`server.js`がローカルとVercel本番環境の両方で動作します。**追加のサーバーレス関数実装は不要**です。
+
+##### 動作方式の違い
+- **ローカル開発**: Express.jsサーバーとしてポート3002で起動
+- **Vercel本番**: @vercel/nodeランタイムでサーバーレス関数として実行
+
+##### 設定ファイル（vercel.json）
+```json
+{
+  "version": 2,
+  "builds": [
+    {
+      "src": "server.js",
+      "use": "@vercel/node"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/(.*)",
+      "dest": "/server.js"
+    }
+  ]
+}
+```
+
+この設定により、同一の`server.js`ファイルが：
+- **ローカル**: `npm run dev` → Express.jsサーバー
+- **Vercel**: 自動的にサーバーレス関数に変換
+
+##### WebSocket・リアルタイム機能
+
+**重要**: Vercelはサーバーレス環境のため、永続的なWebSocket接続をサポートしていません。
+
+- **ローカル開発**: WebSocketで双方向リアルタイム通信
+- **Vercel本番**: Server-Sent Events (SSE) で一方向リアルタイム通信
+
+##### 実装の違い
+
+| 機能 | ローカル環境 | Vercel本番 |
+|------|-------------|------------|
+| リアルタイム通信 | WebSocket | Server-Sent Events |
+| 接続方式 | `ws://localhost:3002` | `/api/realtime/tweets` |
+| 双方向通信 | ✅ | ❌ (SSEは一方向) |
+| 自動フォールバック | 自動検出・切り替え | 自動検出・切り替え |
+
+##### 環境検出ロジック
+```javascript
+// フロントエンドで自動検出
+const isVercel = window.location.hostname.includes('vercel.app');
+if (isVercel) {
+    // SSE使用
+    connectSSE(username);
+} else {
+    // WebSocket使用  
+    connectWebSocket(username);
+}
+```
+
 #### TwitterAPI.io設定更新
 
 本番環境では以下のWebhook URLを設定：
