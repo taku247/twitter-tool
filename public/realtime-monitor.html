@@ -1185,9 +1185,9 @@
                     const isVercel = window.location.hostname.includes('vercel.app');
                     
                     if (isVercel) {
-                        // Vercel環境ではポーリング方式を使用
-                        this.addLog('info', 'Vercel環境を検出 - ポーリング方式を使用');
-                        this.connectPolling();
+                        // Vercel環境ではSSE方式を使用
+                        this.addLog('info', 'Vercel環境を検出 - Server-Sent Events方式を使用');
+                        this.connectSSE();
                         return;
                     }
                     
@@ -1245,6 +1245,54 @@
                     
                 } catch (error) {
                     this.addLog('error', `WebSocket接続エラー: ${error.message}`);
+                }
+            }
+            
+            connectSSE() {
+                try {
+                    this.addLog('info', 'Server-Sent Events接続を開始...');
+                    
+                    // SSE接続を確立
+                    this.eventSource = new EventSource('/api/realtime/stream');
+                    
+                    this.eventSource.onopen = () => {
+                        this.addLog('success', 'SSE接続が確立されました');
+                        this.isConnected = true;
+                        this.currentUsername = 'all-active-rules';
+                        this.startTime = new Date();
+                        this.updateUI();
+                    };
+                    
+                    this.eventSource.onmessage = (event) => {
+                        try {
+                            const data = JSON.parse(event.data);
+                            this.handleWebSocketMessage(data);
+                        } catch (error) {
+                            this.addLog('error', `SSEメッセージ解析エラー: ${error.message}`);
+                        }
+                    };
+                    
+                    this.eventSource.onerror = (error) => {
+                        console.error('SSE Error:', error);
+                        this.addLog('error', 'Server-Sent Eventsエラーが発生しました');
+                        
+                        // 接続が切れた場合の処理
+                        if (this.eventSource.readyState === EventSource.CLOSED) {
+                            this.isConnected = false;
+                            this.updateUI();
+                            
+                            // 自動再接続
+                            this.addLog('info', '5秒後にSSE再接続を試行します...');
+                            setTimeout(() => {
+                                if (!this.isConnected && this.hasActiveRules) {
+                                    this.connectSSE();
+                                }
+                            }, 5000);
+                        }
+                    };
+                    
+                } catch (error) {
+                    this.addLog('error', `SSE接続エラー: ${error.message}`);
                 }
             }
             
@@ -1395,7 +1443,7 @@
             }
             
             async stopMonitoring() {
-                if (!this.isConnected && !this.ws && !this.pollingInterval) {
+                if (!this.isConnected && !this.ws && !this.eventSource && !this.pollingInterval) {
                     this.addLog('error', '監視が開始されていません');
                     return;
                 }
@@ -1407,6 +1455,12 @@
                     if (this.ws) {
                         this.ws.close(1000, 'User requested stop');
                         this.ws = null;
+                    }
+                    
+                    // SSE接続を閉じる
+                    if (this.eventSource) {
+                        this.eventSource.close();
+                        this.eventSource = null;
                     }
                     
                     // ポーリングを停止

@@ -1105,7 +1105,17 @@ async function broadcastToClients(message) {
     }
     
     connectedClients.forEach((client) => {
-        if (client.readyState === WebSocket.OPEN) {
+        if (client.type === 'sse') {
+            // Server-Sent Events クライアント
+            try {
+                client.res.write(`data: ${messageStr}\n\n`);
+                console.log('✅ Message sent to SSE client');
+            } catch (error) {
+                console.log('❌ SSE client error, removing from connectedClients');
+                connectedClients.delete(client);
+            }
+        } else if (client.readyState === WebSocket.OPEN) {
+            // WebSocket クライアント
             client.send(messageStr);
             console.log('✅ Message sent to WebSocket client');
         } else {
@@ -1114,6 +1124,59 @@ async function broadcastToClients(message) {
         }
     });
 }
+
+// Server-Sent Events エンドポイント（Vercel対応）
+app.get('/api/realtime/stream', (req, res) => {
+    // SSE用のヘッダーを設定
+    res.writeHead(200, {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        'Connection': 'keep-alive',
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Headers': 'Cache-Control'
+    });
+
+    // SSEクライアントを接続リストに追加
+    const clientId = Date.now() + Math.random();
+    const sseClient = { id: clientId, res, type: 'sse' };
+    connectedClients.add(sseClient);
+    
+    console.log(`SSE client connected: ${clientId}`);
+    
+    // 接続確認メッセージを送信
+    res.write(`data: ${JSON.stringify({
+        type: 'connection',
+        message: 'Server-Sent Events接続が確立されました',
+        timestamp: Date.now()
+    })}\n\n`);
+    
+    // ハートビート（30秒間隔）
+    const heartbeat = setInterval(() => {
+        try {
+            res.write(`data: ${JSON.stringify({
+                type: 'ping',
+                timestamp: Date.now()
+            })}\n\n`);
+        } catch (error) {
+            console.log(`SSE heartbeat failed for client ${clientId}`);
+            clearInterval(heartbeat);
+            connectedClients.delete(sseClient);
+        }
+    }, 30000);
+    
+    // クライアント切断時の処理
+    req.on('close', () => {
+        console.log(`SSE client disconnected: ${clientId}`);
+        clearInterval(heartbeat);
+        connectedClients.delete(sseClient);
+    });
+    
+    req.on('error', (error) => {
+        console.log(`SSE client error: ${clientId}`, error);
+        clearInterval(heartbeat);
+        connectedClients.delete(sseClient);
+    });
+});
 
 // Vercel環境用：ポーリングベースのリアルタイム更新エンドポイント
 // 最新ツイートを取得するAPIエンドポイント

@@ -255,21 +255,21 @@ Twitter → TwitterAPI.io → Webhook → サーバー → WebSocket → ブラ�
 
 ### v2.0.0 - Vercel対応リアルタイム監視システム
 
-**2024年更新**: WebSocketからHTTPポーリング方式への移行により、Vercel本番環境でのリアルタイム監視を実現。
+**2024年更新**: WebSocketからServer-Sent Events (SSE) 方式への移行により、Vercel本番環境でのリアルタイム監視を実現。
 
 #### 主要変更点
 
 1. **環境別アーキテクチャ**
    - **ローカル**: WebSocket（即座応答）
-   - **Vercel**: HTTPポーリング（1.5秒間隔）
+   - **Vercel**: Server-Sent Events（即座応答）
 
 2. **自動環境検出**
    - ホスト名による自動判定
    - シームレスな機能切り替え
 
-3. **最適化されたポーリング**
-   - 1.5秒間隔でほぼリアルタイム体験
-   - 無料プランでも月40時間使用可能
+3. **最適化されたSSE**
+   - WebSocketと同等の即座応答
+   - 無料プランで無制限使用可能
 
 4. **ユーザー確認フロー**
    - Twitterアカウントのツイートプレビュー
@@ -283,8 +283,8 @@ Twitter → TwitterAPI.io → Webhook → サーバー → WebSocket → ブラ�
 #### 技術的改善
 
 - **サーバーレス対応**: Vercel環境での完全動作
-- **エラーハンドリング**: 接続失敗時の自動フォールバック
-- **メモリ効率**: ツイートバッファリングシステム
+- **エラーハンドリング**: 接続失敗時の自動再接続
+- **軽量通信**: SSEによる効率的なデータ転送
 - **レスポンシブUI**: サイドパネル式設定画面
 
 #### 互換性
@@ -361,11 +361,11 @@ Twitter → TwitterAPI.io → Webhook → サーバー → WebSocket → ブラ�
 
 | 機能 | ローカル環境 | Vercel本番 |
 |------|-------------|------------|
-| リアルタイム通信 | WebSocket | HTTPポーリング |
-| 接続方式 | `ws://localhost:3002` | `/api/realtime/latest` |
-| 更新間隔 | 即座 | 1.5秒間隔 |
-| サーバー負荷 | 低 | 中（ポーリング） |
-| 双方向通信 | ✅ | ✅ (HTTP API併用) |
+| リアルタイム通信 | WebSocket | Server-Sent Events |
+| 接続方式 | `ws://localhost:3002` | `/api/realtime/stream` |
+| 更新間隔 | 即座 | 即座 |
+| サーバー負荷 | 低 | 低 |
+| 双方向通信 | ✅ | ❌ (SSEは一方向) |
 
 ##### 技術詳細
 
@@ -378,76 +378,49 @@ ws.onmessage = (event) => {
 };
 ```
 
-**Vercel環境（ポーリング）:**
+**Vercel環境（Server-Sent Events）:**
 ```javascript
-// 1.5秒間隔でサーバーから最新ツイートを取得
-setInterval(async () => {
-    const response = await fetch('/api/realtime/latest');
-    const data = await response.json();
-    displayNewTweets(data.latestTweets);
-}, 1500); // 無料プランでも月40時間なら使用可能
+// SSE接続でリアルタイムツイート受信
+const eventSource = new EventSource('/api/realtime/stream');
+eventSource.onmessage = (event) => {
+    const data = JSON.parse(event.data);
+    if (data.type === 'tweet') {
+        displayTweet(data.tweet); // 即座に表示
+    }
+};
 ```
 
-##### ポーリング間隔の設計
+##### Server-Sent Eventsの利点
 
-**1.5秒間隔の選択理由:**
-- **遅延**: 最大1.5秒（ほぼリアルタイム体験）
-- **API使用量**: 96,000回/月（40時間使用時）
-- **Vercel無料制限**: 100,000回/月（余裕でクリア）
-- **ユーザー体験**: WebSocketに近い快適さ
+**SSEの特徴:**
+- **遅延**: WebSocketと同等（即座応答）
+- **接続**: 軽量で効率的なHTTP接続
+- **Vercel対応**: サーバーレス環境で完全サポート
+- **ユーザー体験**: WebSocketと同等のリアルタイム性
 
 #### Vercelプラン要件
 
-##### 使用量計算
+Server-Sent Eventsを使用することで、**無料プランで無制限に使用可能**になりました。
 
-| 使用パターン | 月間使用時間 | API呼び出し数 | 必要プラン |
-|-------------|-------------|--------------|-----------|
-| **軽量使用** | 10-20時間 | 24,000-48,000回 | Hobby (無料) ✅ |
-| **標準使用** | 20-40時間 | 48,000-96,000回 | Hobby (無料) ✅ |
-| **重量使用** | 40-70時間 | 96,000-168,000回 | Pro ($20/月) 必須 |
-| **連続使用** | 100時間+ | 240,000回+ | Pro ($20/月) 必須 |
+##### SSE使用時の制限
 
-##### Hobbyプラン制限（無料）
-```
-Function Executions: 100,000回/月
-→ 1.5秒間隔で約42時間まで使用可能
-```
+| 機能 | 無料プラン | 有料プラン |
+|------|----------|-----------|
+| **SSE接続** | 無制限 | 無制限 |
+| **リアルタイム性** | WebSocketと同等 | WebSocketと同等 |
+| **使用時間制限** | なし | なし |
+| **同時接続数** | 制限なし | 制限なし |
 
-##### Proプラン($20/月)
-```
-Function Executions: 1,000,000回/月  
-→ 1.5秒間隔で約416時間まで使用可能（ほぼ無制限）
-```
-
-#### プラン判断の目安
-
-**無料プランで十分な場合:**
-- 月間監視時間が40時間以下
-- 個人利用や試用目的
-- コスト重視
-
-**有料プランが必要な場合:**
-- 月間監視時間が40時間超
-- 複数ユーザーでの利用
-- 商用利用や継続的な監視
-
-#### プラン変更方法
-
-1. **Vercelダッシュボード**にログイン
-2. **Settings** → **Billing** を選択
-3. **Upgrade to Pro**をクリック
-4. クレジットカード情報を入力
-
-**注意**: プラン変更は即座に反映され、月額課金が開始されます。
+**重要**: Server-Sent Eventsは接続ベースのため、従来のFunction Executionsによる制限を受けません。これにより、コスト効率的な無制限リアルタイム監視が可能です。
 
 ##### 環境検出ロジック
 ```javascript
 // フロントエンドで自動検出・切り替え
 const isVercel = window.location.hostname.includes('vercel.app');
 if (isVercel) {
-    connectPolling(username); // ポーリング方式
+    connectSSE(); // Server-Sent Events方式
 } else {
-    connectWebSocket(username); // WebSocket方式
+    connectWebSocket(); // WebSocket方式
 }
 ```
 
