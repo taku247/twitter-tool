@@ -1185,9 +1185,9 @@
                     const isVercel = window.location.hostname.includes('vercel.app');
                     
                     if (isVercel) {
-                        // Vercel環境ではSSE方式を使用
-                        this.addLog('info', 'Vercel環境を検出 - Server-Sent Events方式を使用');
-                        this.connectSSE();
+                        // Vercel環境では軽量ポーリング方式を使用
+                        this.addLog('info', 'Vercel環境を検出 - 軽量ポーリング方式を使用');
+                        this.connectPolling();
                         return;
                     }
                     
@@ -1321,7 +1321,7 @@
                     clearInterval(this.pollingInterval);
                 }
                 
-                // 1.5秒間隔でポーリング（無料プランでも使用可能）
+                // 3秒間隔でポーリング（リアルタイム性とコストのバランス）
                 this.pollingInterval = setInterval(async () => {
                     if (!this.isConnected) {
                         clearInterval(this.pollingInterval);
@@ -1353,9 +1353,9 @@
                         }
                     } catch (error) {
                         console.error('Polling error:', error);
-                        // エラーログは控えめに（1.5秒間隔なので）
+                        // エラーログは控えめに（3秒間隔なので）
                     }
-                }, 1500);
+                }, 3000);
             }
             
             handleWebSocketMessage(data) {

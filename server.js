@@ -1190,16 +1190,21 @@ app.get('/api/realtime/latest', async (req, res) => {
         if (isVercel) {
             // Vercel環境：Firestoreから取得
             console.log('🔥 Vercel environment detected, fetching tweets from Firestore');
-            const tweetsRef = collection(db, 'realtime-tweets');
-            const q = query(tweetsRef, orderBy('receivedAt', 'desc'), limit(10));
-            const querySnapshot = await getDocs(q);
-            
-            latestTweets = querySnapshot.docs.map(doc => ({
-                id: doc.id,
-                ...doc.data()
-            }));
-            
-            console.log(`📥 Retrieved ${latestTweets.length} tweets from Firestore`);
+            try {
+                const tweetsRef = collection(db, 'realtime-tweets');
+                const q = query(tweetsRef, orderBy('receivedAt', 'desc'), limit(10));
+                const querySnapshot = await getDocs(q);
+                
+                latestTweets = querySnapshot.docs.map(doc => ({
+                    id: doc.id,
+                    ...doc.data()
+                }));
+                
+                console.log(`📥 Retrieved ${latestTweets.length} tweets from Firestore`);
+            } catch (firestoreError) {
+                console.error('❌ Firestore error, falling back to memory buffer:', firestoreError);
+                latestTweets = recentTweets.slice(0, 10);
+            }
         } else {
             // ローカル環境：メモリから取得
             console.log('💻 Local environment detected, using in-memory buffer');
