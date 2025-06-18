@@ -97,6 +97,135 @@ This application is deployed on Vercel with automatic deployment configured.
 - Environment variables setup in Vercel dashboard
 - Node.js runtime support
 
+## Webhook Development with ngrok
+
+### Prerequisites
+
+1. **Install ngrok**
+   ```bash
+   # Using Homebrew (recommended)
+   brew install ngrok
+   
+   # Or download from https://ngrok.com/download
+   ```
+
+2. **Configure ngrok authtoken**
+   ```bash
+   ngrok config add-authtoken YOUR_AUTHTOKEN
+   ```
+
+### Development Setup
+
+1. **Start the development server**
+   ```bash
+   npm run dev
+   ```
+   Server will run on `http://localhost:3002`
+
+2. **Start ngrok tunnel** (in a separate terminal)
+   ```bash
+   ngrok http 3002
+   ```
+   
+3. **Get the ngrok URL**
+   Look for the forwarding URL in the output:
+   ```
+   Forwarding  https://abc123.ngrok-free.app -> http://localhost:3002
+   ```
+
+### Testing Webhook Functionality
+
+#### Test Webhook Endpoint
+```bash
+curl -X POST https://YOUR_NGROK_URL.ngrok-free.app/webhook/test \
+  -H "Content-Type: application/json" \
+  -d '{"test": "hello from ngrok"}'
+```
+
+Expected response:
+```json
+{"success":true,"message":"Test webhook received"}
+```
+
+#### Monitor ngrok Traffic
+- Open ngrok web interface: `http://127.0.0.1:4040`
+- View real-time requests and responses
+
+### Real-time Monitoring Dashboard
+
+Access the real-time Twitter monitoring dashboard:
+- **Local**: http://localhost:3002/realtime-monitor.html
+- **ngrok**: https://YOUR_NGROK_URL.ngrok-free.app/realtime-monitor.html
+
+### Available Webhook Endpoints
+
+1. **Test Webhook**
+   ```
+   POST /webhook/test
+   ```
+   For testing webhook connectivity
+
+2. **Twitter Webhook**
+   ```
+   POST /webhook/twitter
+   ```
+   For receiving Twitter data from TwitterAPI.io
+
+### TwitterAPI.io Webhook Configuration
+
+Use the following URL for TwitterAPI.io webhook setup:
+```
+https://YOUR_NGROK_URL.ngrok-free.app/webhook/twitter
+```
+
+### Monitoring Features
+
+#### Hybrid Monitoring Options
+1. **WebSocket Monitoring**: `📡 WebSocket監視開始`
+2. **Hybrid Monitoring**: `🔄 ハイブリッド監視開始` (WebSocket + Polling)
+3. **Webhook Rule Setup**: `🌐 Webhookルール追加`
+4. **Rule Activation**: `🔥 ルール有効化`
+
+#### Debug Functions
+- `🛠️ RESTルール追加テスト`: Test REST API functionality
+- `📋 ルール一覧確認`: Check existing filter rules
+- `🔗 接続状態確認`: Check connection status
+- `🗑️ ログクリア`: Clear debug logs
+
+### Common Issues
+
+#### ngrok Connection Issues
+If you see "endpoint is offline":
+1. Ensure server is running on port 3002
+2. Check ngrok tunnel is active
+3. Verify the correct ngrok URL (should end with `.ngrok-free.app`)
+
+#### Webhook Not Receiving Data
+1. Check TwitterAPI.io webhook URL configuration
+2. Verify webhook rule is activated (`is_effect: 1`)
+3. Monitor ngrok web interface for incoming requests
+
+### Development Workflow
+
+1. **Start development environment**
+   ```bash
+   # Terminal 1: Start server
+   npm run dev
+   
+   # Terminal 2: Start ngrok
+   ngrok http 3002
+   ```
+
+2. **Configure webhooks**
+   - Copy ngrok URL
+   - Set up TwitterAPI.io webhook rules
+   - Test with curl commands
+
+3. **Monitor real-time activity**
+   - Open real-time dashboard
+   - Start monitoring for target Twitter accounts
+   - Verify webhook data reception
+
 ## License
 
 MIT

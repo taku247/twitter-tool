@@ -1,0 +1,979 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>リアルタイム Twitter アカウント監視</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
+            background: linear-gradient(135deg, #0c0c0c 0%, #1a1a1a 100%);
+            min-height: 100vh;
+            color: #ffffff;
+            line-height: 1.6;
+        }
+        
+        .header {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 1rem 0;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+        
+        .nav {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .logo {
+            font-size: 1.5rem;
+            font-weight: 700;
+            background: linear-gradient(45deg, #1da1f2, #00d4ff);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        .nav-links {
+            display: flex;
+            gap: 1rem;
+        }
+        
+        .nav-link {
+            color: rgba(255, 255, 255, 0.8);
+            text-decoration: none;
+            padding: 0.5rem 1rem;
+            border-radius: 0.5rem;
+            transition: all 0.3s ease;
+        }
+        
+        .nav-link:hover {
+            background: rgba(255, 255, 255, 0.1);
+            color: #ffffff;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+        
+        .monitor-section {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 1rem;
+            padding: 2rem;
+            margin-bottom: 2rem;
+        }
+        
+        .section-title {
+            font-size: 1.5rem;
+            font-weight: 600;
+            margin-bottom: 1.5rem;
+            color: #ffffff;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .status-indicator {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #dc3545;
+            transition: background-color 0.3s ease;
+        }
+        
+        .status-indicator.connected {
+            background: #28a745;
+        }
+        
+        .control-panel {
+            display: grid;
+            grid-template-columns: 1fr auto auto;
+            gap: 1rem;
+            margin-bottom: 2rem;
+            align-items: end;
+        }
+        
+        .input-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+        
+        .input-label {
+            font-size: 0.9rem;
+            color: rgba(255, 255, 255, 0.8);
+            font-weight: 500;
+        }
+        
+        .input-field {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 0.5rem;
+            padding: 0.75rem 1rem;
+            color: #ffffff;
+            font-size: 1rem;
+            transition: all 0.3s ease;
+        }
+        
+        .input-field:focus {
+            outline: none;
+            border-color: #1da1f2;
+            box-shadow: 0 0 0 3px rgba(29, 161, 242, 0.1);
+        }
+        
+        .btn {
+            background: linear-gradient(45deg, #1da1f2, #0099cc);
+            border: none;
+            border-radius: 0.5rem;
+            padding: 0.75rem 1.5rem;
+            color: #ffffff;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(29, 161, 242, 0.3);
+        }
+        
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+        
+        .btn-danger {
+            background: linear-gradient(45deg, #dc3545, #c82333);
+        }
+        
+        .btn-danger:hover {
+            box-shadow: 0 8px 20px rgba(220, 53, 69, 0.3);
+        }
+        
+        .tweets-container {
+            max-height: 600px;
+            overflow-y: auto;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 0.5rem;
+            padding: 1rem;
+            background: rgba(0, 0, 0, 0.2);
+        }
+        
+        .tweet-item {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 0.5rem;
+            padding: 1rem;
+            margin-bottom: 1rem;
+            animation: slideIn 0.3s ease-out;
+        }
+        
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        .tweet-author {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-bottom: 0.5rem;
+        }
+        
+        .tweet-avatar {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: linear-gradient(45deg, #1da1f2, #00d4ff);
+        }
+        
+        .tweet-username {
+            font-weight: 600;
+            color: #1da1f2;
+        }
+        
+        .tweet-handle {
+            color: rgba(255, 255, 255, 0.6);
+            font-size: 0.9rem;
+        }
+        
+        .tweet-text {
+            margin-bottom: 0.5rem;
+            line-height: 1.5;
+        }
+        
+        .tweet-meta {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.8rem;
+            color: rgba(255, 255, 255, 0.6);
+        }
+        
+        .tweet-time {
+            font-weight: 500;
+        }
+        
+        .tweet-stats {
+            display: flex;
+            gap: 1rem;
+        }
+        
+        .stats-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+        
+        .stat-card {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 0.5rem;
+            padding: 1rem;
+            text-align: center;
+        }
+        
+        .stat-number {
+            font-size: 2rem;
+            font-weight: 700;
+            color: #1da1f2;
+            margin-bottom: 0.5rem;
+        }
+        
+        .stat-label {
+            color: rgba(255, 255, 255, 0.8);
+            font-size: 0.9rem;
+        }
+        
+        .empty-state {
+            text-align: center;
+            padding: 3rem;
+            color: rgba(255, 255, 255, 0.6);
+        }
+        
+        .connection-log {
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 0.5rem;
+            padding: 1rem;
+            max-height: 400px;
+            overflow-y: auto;
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            font-size: 0.75rem;
+            line-height: 1.3;
+        }
+        
+        .log-entry {
+            margin-bottom: 0.5rem;
+            opacity: 0.8;
+        }
+        
+        .log-timestamp {
+            color: rgba(255, 255, 255, 0.5);
+        }
+        
+        .log-info {
+            color: #17a2b8;
+        }
+        
+        .log-success {
+            color: #28a745;
+        }
+        
+        .log-error {
+            color: #dc3545;
+        }
+        
+        @media (max-width: 768px) {
+            .control-panel {
+                grid-template-columns: 1fr;
+                gap: 1rem;
+            }
+            
+            .stats-container {
+                grid-template-columns: 1fr 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <nav class="nav">
+            <div class="logo">🐦 Twitter リアルタイム監視</div>
+            <div class="nav-links">
+                <a href="index.html" class="nav-link">メインダッシュボード</a>
+                <a href="user-tracker.html" class="nav-link">ユーザー追跡</a>
+                <a href="kaitotweet.html" class="nav-link">暗号通貨</a>
+            </div>
+        </nav>
+    </header>
+
+    <div class="container">
+        <div class="monitor-section">
+            <h2 class="section-title">
+                <span class="status-indicator" id="statusIndicator"></span>
+                リアルタイム監視コントロール
+            </h2>
+            
+            <div class="control-panel">
+                <div class="input-group">
+                    <label class="input-label" for="usernameInput">監視するTwitterアカウント</label>
+                    <input 
+                        type="text" 
+                        id="usernameInput" 
+                        class="input-field" 
+                        placeholder="例: kokukoku323 (@ は不要)"
+                        value="kokukoku323"
+                    >
+                </div>
+                <button id="startBtn" class="btn">
+                    📡 WebSocket監視開始
+                </button>
+                <button id="startPollingBtn" class="btn" style="background: linear-gradient(45deg, #28a745, #20c997);">
+                    🔄 ハイブリッド監視開始
+                </button>
+                <button id="stopBtn" class="btn btn-danger" disabled>
+                    ⏹️ 停止
+                </button>
+            </div>
+            
+            <div class="debug-panel" style="margin-top: 1rem; padding: 1rem; background: rgba(255, 255, 255, 0.02); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 0.5rem;">
+                <h3 style="margin-bottom: 1rem; color: #ffc107;">🔧 デバッグ機能</h3>
+                <div style="display: flex; gap: 1rem; flex-wrap: wrap;">
+                    <button id="testRestRuleBtn" class="btn" style="background: #6c757d;">
+                        🛠️ RESTルール追加テスト
+                    </button>
+                    <button id="webhookRuleBtn" class="btn" style="background: #007bff;">
+                        🌐 Webhookルール追加
+                    </button>
+                    <button id="activateRuleBtn" class="btn" style="background: #28a745;">
+                        🔥 ルール有効化
+                    </button>
+                    <button id="checkRulesBtn" class="btn" style="background: #6c757d;">
+                        📋 ルール一覧確認
+                    </button>
+                    <button id="clearLogsBtn" class="btn" style="background: #6c757d;">
+                        🗑️ ログクリア
+                    </button>
+                    <button id="connectionStatusBtn" class="btn" style="background: #6c757d;">
+                        🔍 接続状態確認
+                    </button>
+                </div>
+            </div>
+
+            <div class="stats-container">
+                <div class="stat-card">
+                    <div class="stat-number" id="totalTweets">0</div>
+                    <div class="stat-label">受信ツイート数</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number" id="connectionTime">00:00:00</div>
+                    <div class="stat-label">接続時間</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number" id="currentAccount">-</div>
+                    <div class="stat-label">監視中アカウント</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="monitor-section">
+            <h2 class="section-title">📨 リアルタイムツイート</h2>
+            <div class="tweets-container" id="tweetsContainer">
+                <div class="empty-state">
+                    <p>アカウントを指定して監視を開始してください</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="monitor-section">
+            <h2 class="section-title">📋 接続ログ</h2>
+            <div class="connection-log" id="connectionLog">
+                <div class="log-entry">
+                    <span class="log-timestamp">[待機中]</span> 
+                    <span class="log-info">WebSocket接続の準備ができました</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        class TwitterRealtimeMonitor {
+            constructor() {
+                this.ws = null;
+                this.isConnected = false;
+                this.startTime = null;
+                this.tweetCount = 0;
+                this.connectionTimer = null;
+                this.currentUsername = '';
+                this.lastWebhookRule = null; // 最後に作成したWebhookルール情報
+                
+                this.initializeElements();
+                this.bindEvents();
+                this.updateConnectionTime();
+            }
+            
+            initializeElements() {
+                this.elements = {
+                    statusIndicator: document.getElementById('statusIndicator'),
+                    usernameInput: document.getElementById('usernameInput'),
+                    startBtn: document.getElementById('startBtn'),
+                    startPollingBtn: document.getElementById('startPollingBtn'),
+                    stopBtn: document.getElementById('stopBtn'),
+                    totalTweets: document.getElementById('totalTweets'),
+                    connectionTime: document.getElementById('connectionTime'),
+                    currentAccount: document.getElementById('currentAccount'),
+                    tweetsContainer: document.getElementById('tweetsContainer'),
+                    connectionLog: document.getElementById('connectionLog')
+                };
+            }
+            
+            bindEvents() {
+                this.elements.startBtn.addEventListener('click', () => this.startMonitoring());
+                this.elements.startPollingBtn.addEventListener('click', () => this.startHybridMonitoring());
+                this.elements.stopBtn.addEventListener('click', () => this.stopMonitoring());
+                
+                this.elements.usernameInput.addEventListener('keypress', (e) => {
+                    if (e.key === 'Enter' && !this.isConnected) {
+                        this.startMonitoring();
+                    }
+                });
+                
+                // デバッグ機能のイベントリスナー
+                document.getElementById('testRestRuleBtn').addEventListener('click', () => this.testRestRule());
+                document.getElementById('webhookRuleBtn').addEventListener('click', () => this.addWebhookRule());
+                document.getElementById('activateRuleBtn').addEventListener('click', () => this.activateWebhookRule());
+                document.getElementById('checkRulesBtn').addEventListener('click', () => this.checkRules());
+                document.getElementById('clearLogsBtn').addEventListener('click', () => this.clearLogs());
+                document.getElementById('connectionStatusBtn').addEventListener('click', () => this.checkConnectionStatus());
+            }
+            
+            async startMonitoring() {
+                const username = this.elements.usernameInput.value.trim();
+                if (!username) {
+                    this.addLog('error', 'ユーザー名を入力してください');
+                    return;
+                }
+                
+                if (this.isConnected) {
+                    this.addLog('error', 'すでに監視中です');
+                    return;
+                }
+                
+                try {
+                    this.addLog('info', `@${username} の監視を開始します...`);
+                    
+                    // WebSocket接続を直接確立
+                    this.addLog('info', 'WebSocket接続を確立中...');
+                    this.connectWebSocket(username);
+                    
+                } catch (error) {
+                    this.addLog('error', `監視開始エラー: ${error.message}`);
+                }
+            }
+            
+            async startHybridMonitoring() {
+                const username = this.elements.usernameInput.value.trim();
+                if (!username) {
+                    this.addLog('error', 'ユーザー名を入力してください');
+                    return;
+                }
+                
+                if (this.isConnected) {
+                    this.addLog('error', 'すでに監視中です');
+                    return;
+                }
+                
+                try {
+                    this.addLog('info', `@${username} のハイブリッド監視を開始します...`);
+                    
+                    // まずWebSocket接続を確立
+                    this.connectWebSocket(username);
+                    
+                    // 高頻度ポーリングを開始（WebSocketが機能しない場合のフォールバック）
+                    const pollingResponse = await fetch('/api/twitter/start-polling', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            username: username,
+                            intervalSeconds: 15 // 15秒間隔
+                        })
+                    });
+                    
+                    if (pollingResponse.ok) {
+                        const result = await pollingResponse.json();
+                        this.addLog('success', `ハイブリッド監視開始: ${result.message}`);
+                    } else {
+                        const error = await pollingResponse.json();
+                        this.addLog('warning', `ポーリング開始失敗: ${error.error?.message || 'Unknown error'}`);
+                    }
+                    
+                } catch (error) {
+                    this.addLog('error', `ハイブリッド監視開始エラー: ${error.message}`);
+                }
+            }
+            
+            connectWebSocket(username) {
+                try {
+                    // サーバー側のWebSocketエンドポイントに接続
+                    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+                    const wsUrl = `${protocol}//${window.location.host}`;
+                    
+                    this.ws = new WebSocket(wsUrl);
+                    
+                    this.ws.onopen = () => {
+                        this.addLog('success', 'WebSocket接続が確立されました');
+                        this.isConnected = true;
+                        this.currentUsername = username;
+                        this.startTime = new Date();
+                        this.updateUI();
+                        
+                        // 監視するユーザーを指定
+                        this.ws.send(JSON.stringify({
+                            action: 'monitor',
+                            username: username
+                        }));
+                    };
+                    
+                    this.ws.onmessage = (event) => {
+                        try {
+                            const data = JSON.parse(event.data);
+                            this.handleWebSocketMessage(data);
+                        } catch (error) {
+                            this.addLog('error', `メッセージ解析エラー: ${error.message}`);
+                        }
+                    };
+                    
+                    this.ws.onerror = (error) => {
+                        this.addLog('error', `WebSocketエラー: ${error.message || 'Unknown error'}`);
+                    };
+                    
+                    this.ws.onclose = (event) => {
+                        this.addLog('info', `WebSocket接続が閉じられました (Code: ${event.code})`);
+                        this.isConnected = false;
+                        this.updateUI();
+                        
+                        // 自動再接続の実装（オプション）
+                        if (event.code !== 1000) { // 正常終了以外の場合
+                            this.addLog('info', '5秒後に再接続を試行します...');
+                            setTimeout(() => {
+                                if (!this.isConnected && this.currentUsername) {
+                                    this.connectWebSocket(this.currentUsername);
+                                }
+                            }, 5000);
+                        }
+                    };
+                    
+                } catch (error) {
+                    this.addLog('error', `WebSocket接続エラー: ${error.message}`);
+                }
+            }
+            
+            handleWebSocketMessage(data) {
+                // 詳細なメッセージログを追加
+                this.addLog('info', `📨 WebSocketメッセージ受信: ${JSON.stringify(data, null, 2)}`);
+                
+                switch (data.type) {
+                    case 'tweet':
+                        this.displayNewTweet(data.tweet);
+                        this.tweetCount++;
+                        this.elements.totalTweets.textContent = this.tweetCount;
+                        this.addLog('success', `新しいツイートを受信: @${data.tweet.author?.userName || 'unknown'}`);
+                        break;
+                        
+                    case 'ping':
+                        this.addLog('info', 'Ping受信 - 接続正常');
+                        break;
+                        
+                    case 'error':
+                        this.addLog('error', `サーバーエラー: ${data.message}`);
+                        break;
+                        
+                    case 'status':
+                        this.addLog('info', `ステータス更新: ${data.message}`);
+                        break;
+                        
+                    case 'rule_status':
+                        this.addLog('info', `ルールステータス: ${data.message}`);
+                        if (data.data) {
+                            this.addLog('info', `ルール詳細: ${JSON.stringify(data.data, null, 2)}`);
+                        }
+                        break;
+                        
+                    case 'unknown':
+                        this.addLog('info', `未知のメッセージ: ${data.message}`);
+                        if (data.data) {
+                            this.addLog('info', `データ: ${JSON.stringify(data.data, null, 2)}`);
+                        }
+                        break;
+                        
+                    default:
+                        this.addLog('info', `未知のメッセージタイプ: ${data.type}`);
+                        this.addLog('info', `メッセージ内容: ${JSON.stringify(data, null, 2)}`);
+                }
+            }
+            
+            displayNewTweet(tweet) {
+                const tweetElement = document.createElement('div');
+                tweetElement.className = 'tweet-item';
+                
+                const author = tweet.author || {};
+                const createdAt = new Date(tweet.created_at || Date.now());
+                
+                tweetElement.innerHTML = `
+                    <div class="tweet-author">
+                        <div class="tweet-avatar" style="background-image: url('${author.profilePicture || ''}')"></div>
+                        <span class="tweet-username">${author.name || 'Unknown User'}</span>
+                        <span class="tweet-handle">@${author.userName || 'unknown'}</span>
+                    </div>
+                    <div class="tweet-text">${tweet.text || 'No content'}</div>
+                    <div class="tweet-meta">
+                        <span class="tweet-time">${createdAt.toLocaleString('ja-JP')}</span>
+                        <div class="tweet-stats">
+                            <span>❤️ ${tweet.likes || 0}</span>
+                            <span>🔄 ${tweet.retweets || 0}</span>
+                            <span>💬 ${tweet.replies || 0}</span>
+                        </div>
+                    </div>
+                `;
+                
+                // 空の状態表示を削除
+                const emptyState = this.elements.tweetsContainer.querySelector('.empty-state');
+                if (emptyState) {
+                    emptyState.remove();
+                }
+                
+                // 新しいツイートを先頭に追加
+                this.elements.tweetsContainer.insertBefore(tweetElement, this.elements.tweetsContainer.firstChild);
+                
+                // 古いツイートを制限（最大50件）
+                const tweets = this.elements.tweetsContainer.querySelectorAll('.tweet-item');
+                if (tweets.length > 50) {
+                    tweets[tweets.length - 1].remove();
+                }
+            }
+            
+            async stopMonitoring() {
+                if (!this.isConnected && !this.ws) {
+                    this.addLog('error', '監視が開始されていません');
+                    return;
+                }
+                
+                try {
+                    this.addLog('info', '監視を停止しています...');
+                    
+                    // WebSocket接続を閉じる
+                    if (this.ws) {
+                        this.ws.close(1000, 'User requested stop');
+                        this.ws = null;
+                    }
+                    
+                    // ポーリングも停止
+                    if (this.currentUsername) {
+                        try {
+                            const pollingResponse = await fetch('/api/twitter/stop-polling', {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                },
+                                body: JSON.stringify({
+                                    username: this.currentUsername
+                                })
+                            });
+                            
+                            if (pollingResponse.ok) {
+                                this.addLog('success', 'ポーリング監視も停止されました');
+                            }
+                        } catch (pollingError) {
+                            this.addLog('warning', `ポーリング停止エラー: ${pollingError.message}`);
+                        }
+                    }
+                    
+                    this.addLog('success', '全ての監視が正常に停止されました');
+                    
+                } catch (error) {
+                    this.addLog('error', `停止エラー: ${error.message}`);
+                } finally {
+                    this.isConnected = false;
+                    this.currentUsername = '';
+                    this.updateUI();
+                }
+            }
+            
+            updateUI() {
+                // ステータス表示の更新
+                if (this.isConnected) {
+                    this.elements.statusIndicator.classList.add('connected');
+                    this.elements.startBtn.disabled = true;
+                    this.elements.startPollingBtn.disabled = true;
+                    this.elements.stopBtn.disabled = false;
+                    this.elements.usernameInput.disabled = true;
+                    this.elements.currentAccount.textContent = `@${this.currentUsername}`;
+                } else {
+                    this.elements.statusIndicator.classList.remove('connected');
+                    this.elements.startBtn.disabled = false;
+                    this.elements.startPollingBtn.disabled = false;
+                    this.elements.stopBtn.disabled = true;
+                    this.elements.usernameInput.disabled = false;
+                    this.elements.currentAccount.textContent = '-';
+                }
+            }
+            
+            updateConnectionTime() {
+                this.connectionTimer = setInterval(() => {
+                    if (this.isConnected && this.startTime) {
+                        const elapsed = Math.floor((Date.now() - this.startTime) / 1000);
+                        const hours = Math.floor(elapsed / 3600).toString().padStart(2, '0');
+                        const minutes = Math.floor((elapsed % 3600) / 60).toString().padStart(2, '0');
+                        const seconds = (elapsed % 60).toString().padStart(2, '0');
+                        
+                        this.elements.connectionTime.textContent = `${hours}:${minutes}:${seconds}`;
+                    } else {
+                        this.elements.connectionTime.textContent = '00:00:00';
+                    }
+                }, 1000);
+            }
+            
+            async addWebhookRule() {
+                const username = this.elements.usernameInput.value.trim();
+                if (!username) {
+                    this.addLog('error', 'Webhookルール: ユーザー名を入力してください');
+                    return;
+                }
+                
+                try {
+                    this.addLog('info', `🌐 Webhookルール追加開始: @${username}`);
+                    
+                    const response = await fetch('/api/twitter/webhook-rule', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            username: username,
+                            intervalSeconds: 120 // 2分間隔
+                        })
+                    });
+                    
+                    const result = await response.json();
+                    
+                    if (result.success) {
+                        this.addLog('success', `✅ Webhookルール追加成功！`);
+                        this.addLog('info', `Rule ID: ${result.ruleId}`);
+                        this.addLog('info', `Tag: ${result.tag}`);
+                        this.addLog('info', `Filter: ${result.filter}`);
+                        this.addLog('info', `Interval: ${result.intervalSeconds}秒`);
+                        this.addLog('info', `Status: ${result.status}`);
+                        this.addLog('info', `Message: ${result.message}`);
+                        
+                        // ルール情報を保存
+                        this.lastWebhookRule = {
+                            username: username,
+                            ruleId: result.ruleId,
+                            tag: result.tag,
+                            filter: result.filter,
+                            intervalSeconds: result.intervalSeconds
+                        };
+                        
+                        if (result.message.includes('not activated')) {
+                            this.addLog('warning', '⚠️ ルールは作成されましたが、有効化が必要です。🔥 ルール有効化ボタンをクリックしてください。');
+                        }
+                    } else {
+                        this.addLog('error', `❌ Webhookルール追加失敗: ${JSON.stringify(result.error, null, 2)}`);
+                    }
+                    
+                } catch (error) {
+                    this.addLog('error', `Webhookルールエラー: ${error.message}`);
+                }
+            }
+            
+            async activateWebhookRule() {
+                if (!this.lastWebhookRule) {
+                    this.addLog('error', '有効化するルールがありません。まず🌐 Webhookルール追加を実行してください。');
+                    return;
+                }
+                
+                try {
+                    this.addLog('info', `🔥 Webhookルール有効化開始: @${this.lastWebhookRule.username}`);
+                    this.addLog('info', `Rule ID: ${this.lastWebhookRule.ruleId}`);
+                    
+                    const response = await fetch('/api/twitter/activate-webhook-rule', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            username: this.lastWebhookRule.username,
+                            ruleId: this.lastWebhookRule.ruleId,
+                            tag: this.lastWebhookRule.tag,
+                            filter: this.lastWebhookRule.filter,
+                            intervalSeconds: this.lastWebhookRule.intervalSeconds
+                        })
+                    });
+                    
+                    const result = await response.json();
+                    
+                    if (result.success) {
+                        this.addLog('success', `🎉 Webhookルール有効化成功！`);
+                        this.addLog('info', `Rule ID: ${result.ruleId}`);
+                        this.addLog('info', `Status: ${result.status}`);
+                        this.addLog('info', `Message: ${result.message}`);
+                        this.addLog('info', `Active: ${result.isActive}`);
+                        this.addLog('info', `Activated at: ${result.activatedAt}`);
+                        this.addLog('success', `✅ @${this.lastWebhookRule.username} のツイートが${this.lastWebhookRule.intervalSeconds}秒間隔で自動監視されます！`);
+                    } else {
+                        this.addLog('error', `❌ Webhookルール有効化失敗: ${JSON.stringify(result.error, null, 2)}`);
+                    }
+                    
+                } catch (error) {
+                    this.addLog('error', `ルール有効化エラー: ${error.message}`);
+                }
+            }
+            
+            addLog(type, message) {
+                const timestamp = new Date().toLocaleTimeString('ja-JP');
+                const logEntry = document.createElement('div');
+                logEntry.className = 'log-entry';
+                logEntry.innerHTML = `
+                    <span class="log-timestamp">[${timestamp}]</span> 
+                    <span class="log-${type}">${message}</span>
+                `;
+                
+                this.elements.connectionLog.appendChild(logEntry);
+                this.elements.connectionLog.scrollTop = this.elements.connectionLog.scrollHeight;
+                
+                // ログエントリー数を制限（最大100件）
+                const entries = this.elements.connectionLog.querySelectorAll('.log-entry');
+                if (entries.length > 100) {
+                    entries[0].remove();
+                }
+            }
+            
+            // デバッグ機能
+            async testRestRule() {
+                const username = this.elements.usernameInput.value.trim();
+                if (!username) {
+                    this.addLog('error', 'RESTルールテスト: ユーザー名を入力してください');
+                    return;
+                }
+                
+                try {
+                    this.addLog('info', `RESTルールテスト開始: @${username}`);
+                    
+                    const response = await fetch('/api/twitter/test-user-tweets', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            username: username,
+                            action: 'add'
+                        })
+                    });
+                    
+                    const result = await response.json();
+                    
+                    if (result.success) {
+                        this.addLog('success', `RESTルール追加成功: ${JSON.stringify(result, null, 2)}`);
+                    } else {
+                        this.addLog('error', `RESTルール追加失敗: ${JSON.stringify(result, null, 2)}`);
+                    }
+                    
+                } catch (error) {
+                    this.addLog('error', `RESTルールテストエラー: ${error.message}`);
+                }
+            }
+            
+            async checkRules() {
+                try {
+                    this.addLog('info', 'フィルタールール一覧を取得中...');
+                    
+                    const response = await fetch('/api/twitter/filter-rules');
+                    const result = await response.json();
+                    
+                    if (result.success) {
+                        this.addLog('success', `フィルタールール一覧: ${JSON.stringify(result.rules, null, 2)}`);
+                    } else {
+                        this.addLog('error', `フィルタールール取得失敗: ${JSON.stringify(result, null, 2)}`);
+                    }
+                    
+                } catch (error) {
+                    this.addLog('error', `ルール確認エラー: ${error.message}`);
+                }
+            }
+            
+            async checkConnectionStatus() {
+                try {
+                    this.addLog('info', 'WebSocket接続状態を確認中...');
+                    
+                    const response = await fetch('/api/twitter/websocket/status');
+                    const result = await response.json();
+                    
+                    this.addLog('info', `接続状態: ${JSON.stringify(result, null, 2)}`);
+                    
+                    // WebSocket状態の詳細表示
+                    if (this.ws) {
+                        this.addLog('info', `クライアントWebSocket状態: ${this.ws.readyState} (${this.getReadyStateText(this.ws.readyState)})`);
+                    } else {
+                        this.addLog('info', 'クライアントWebSocket: 未接続');
+                    }
+                    
+                } catch (error) {
+                    this.addLog('error', `接続状態確認エラー: ${error.message}`);
+                }
+            }
+            
+            getReadyStateText(readyState) {
+                const states = {
+                    0: 'CONNECTING',
+                    1: 'OPEN',
+                    2: 'CLOSING', 
+                    3: 'CLOSED'
+                };
+                return states[readyState] || 'UNKNOWN';
+            }
+            
+            clearLogs() {
+                this.elements.connectionLog.innerHTML = '<div class="log-entry"><span class="log-timestamp">[ログクリア]</span> <span class="log-info">ログがクリアされました</span></div>';
+                this.addLog('info', 'ログクリア完了');
+            }
+        }
+        
+        // ページ読み込み完了時に初期化
+        document.addEventListener('DOMContentLoaded', () => {
+            new TwitterRealtimeMonitor();
+        });
+    </script>
+</body>
+</html>
