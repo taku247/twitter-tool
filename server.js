@@ -734,7 +734,14 @@ wss.on('connection', (ws) => {
             console.log('Received message from client:', data);
             
             if (data.action === 'monitor' && data.username) {
-                await startTwitterMonitoring(data.username);
+                // Webhookが既に動作しているので、WebSocket接続のみ確立
+                console.log(`📡 WebSocket monitoring enabled for: @${data.username}`);
+                currentMonitoringUsername = data.username;
+                
+                ws.send(JSON.stringify({
+                    type: 'status',
+                    message: `@${data.username} の監視を開始しました (Webhook経由)`
+                }));
             }
         } catch (error) {
             console.error('WebSocket message error:', error);
@@ -1003,9 +1010,20 @@ function stopTwitterMonitoring() {
 // 全てのクライアントにメッセージをブロードキャスト
 function broadcastToClients(message) {
     const messageStr = JSON.stringify(message);
+    console.log(`📡 Broadcasting to ${connectedClients.size} clients:`, message.type || 'unknown');
+    
+    if (connectedClients.size === 0) {
+        console.log('⚠️ No WebSocket clients connected to receive message');
+        return;
+    }
+    
     connectedClients.forEach((client) => {
         if (client.readyState === WebSocket.OPEN) {
             client.send(messageStr);
+            console.log('✅ Message sent to client');
+        } else {
+            console.log('❌ Client not ready, removing from connectedClients');
+            connectedClients.delete(client);
         }
     });
 }
@@ -1558,7 +1576,7 @@ app.post('/api/twitter/webhook-rule', async (req, res) => {
         const requestBody = {
             tag: `monitor_${username}_${Date.now()}`,
             value: `from:${username}`,
-            interval_seconds: Math.max(100, intervalSeconds) // 最小100秒
+            interval_seconds: intervalSeconds // ユーザー選択の間隔を使用
         };
         
         console.log(`📝 Sending request to ${endpoint}:`, JSON.stringify(requestBody, null, 2));
@@ -1638,7 +1656,7 @@ app.post('/api/twitter/activate-webhook-rule', async (req, res) => {
             rule_id: ruleId,
             tag: tag || `monitor_${username}_${Date.now()}`,
             value: filter || `from:${username}`,
-            interval_seconds: Math.max(100, intervalSeconds),
+            interval_seconds: intervalSeconds, // ユーザー選択の間隔を使用
             is_effect: 1 // 1 = アクティブ, 0 = 非アクティブ
         };
         
@@ -1685,6 +1703,83 @@ app.post('/api/twitter/activate-webhook-rule', async (req, res) => {
                 message: error.message,
                 details: error.response?.data,
                 note: 'Webhook rule activation failed. Check rule_id and parameters.'
+            }
+        });
+    }
+});
+
+// 現在のWebhookルール一覧を取得
+app.get('/api/twitter/webhook-rules', async (req, res) => {
+    try {
+        console.log('📋 Fetching current webhook rules...');
+        
+        const endpoint = 'https://api.twitterapi.io/oapi/tweet_filter/get_rules';
+        
+        const response = await axios.get(endpoint, {
+            headers: {
+                'X-API-Key': process.env.TWITTER_API_KEY,
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        console.log('✅ Webhook rules fetched successfully');
+        console.log('Rules data:', JSON.stringify(response.data, null, 2));
+        
+        res.json({
+            success: true,
+            rules: response.data.rules || response.data,
+            totalCount: response.data.rules ? response.data.rules.length : (Array.isArray(response.data) ? response.data.length : 0),
+            timestamp: new Date().toISOString()
+        });
+        
+    } catch (error) {
+        console.error('❌ Failed to fetch webhook rules:', error.response?.data || error.message);
+        res.status(error.response?.status || 500).json({
+            success: false,
+            error: error.response?.data || { 
+                message: error.message,
+                details: 'Failed to fetch webhook rules from TwitterAPI.io'
+            }
+        });
+    }
+});
+
+// Webhookルールを削除
+app.delete('/api/twitter/webhook-rules/:ruleId', async (req, res) => {
+    try {
+        const { ruleId } = req.params;
+        console.log(`🗑️ Deleting webhook rule: ${ruleId}`);
+        
+        const endpoint = 'https://api.twitterapi.io/oapi/tweet_filter/delete_rule';
+        
+        const response = await axios.delete(endpoint, {
+            headers: {
+                'X-API-Key': process.env.TWITTER_API_KEY,
+                'Content-Type': 'application/json'
+            },
+            data: {
+                rule_id: ruleId
+            }
+        });
+        
+        console.log('✅ Webhook rule deleted successfully');
+        console.log('Delete response:', JSON.stringify(response.data, null, 2));
+        
+        res.json({
+            success: true,
+            ruleId: ruleId,
+            response: response.data,
+            message: 'Webhook rule deleted successfully',
+            timestamp: new Date().toISOString()
+        });
+        
+    } catch (error) {
+        console.error('❌ Failed to delete webhook rule:', error.response?.data || error.message);
+        res.status(error.response?.status || 500).json({
+            success: false,
+            error: error.response?.data || { 
+                message: error.message,
+                details: 'Failed to delete webhook rule from TwitterAPI.io'
             }
         });
     }

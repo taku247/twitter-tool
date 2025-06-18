@@ -97,134 +97,159 @@ This application is deployed on Vercel with automatic deployment configured.
 - Environment variables setup in Vercel dashboard
 - Node.js runtime support
 
-## Webhook Development with ngrok
+## ngrokを使用したWebhook開発
 
-### Prerequisites
+### 事前準備
 
-1. **Install ngrok**
+1. **ngrokのインストール**
    ```bash
-   # Using Homebrew (recommended)
+   # Homebrewを使用（推奨）
    brew install ngrok
    
-   # Or download from https://ngrok.com/download
+   # または https://ngrok.com/download からダウンロード
    ```
 
-2. **Configure ngrok authtoken**
+2. **ngrok認証トークンの設定**
    ```bash
    ngrok config add-authtoken YOUR_AUTHTOKEN
    ```
 
-### Development Setup
+### 開発環境のセットアップ
 
-1. **Start the development server**
+1. **開発サーバーの起動**
    ```bash
    npm run dev
    ```
-   Server will run on `http://localhost:3002`
+   サーバーは `http://localhost:3002` で起動します
 
-2. **Start ngrok tunnel** (in a separate terminal)
+2. **ngrokトンネルの開始**（別ターミナルで実行）
    ```bash
    ngrok http 3002
    ```
    
-3. **Get the ngrok URL**
-   Look for the forwarding URL in the output:
+3. **ngrok URLの取得**
+   出力から転送URLを確認してください：
    ```
    Forwarding  https://abc123.ngrok-free.app -> http://localhost:3002
    ```
 
-### Testing Webhook Functionality
+### Webhook機能のテスト
 
-#### Test Webhook Endpoint
+#### Webhookエンドポイントのテスト
 ```bash
 curl -X POST https://YOUR_NGROK_URL.ngrok-free.app/webhook/test \
   -H "Content-Type: application/json" \
   -d '{"test": "hello from ngrok"}'
 ```
 
-Expected response:
+期待されるレスポンス：
 ```json
 {"success":true,"message":"Test webhook received"}
 ```
 
-#### Monitor ngrok Traffic
-- Open ngrok web interface: `http://127.0.0.1:4040`
-- View real-time requests and responses
+#### ngrokトラフィックの監視
+- ngrok Web インターface を開く：`http://127.0.0.1:4040`
+- リアルタイムでリクエストとレスポンスを確認
 
-### Real-time Monitoring Dashboard
+### リアルタイム監視ダッシュボード
 
-Access the real-time Twitter monitoring dashboard:
-- **Local**: http://localhost:3002/realtime-monitor.html
+Twitterリアルタイム監視ダッシュボードへのアクセス：
+- **ローカル**: http://localhost:3002/realtime-monitor.html
 - **ngrok**: https://YOUR_NGROK_URL.ngrok-free.app/realtime-monitor.html
 
-### Available Webhook Endpoints
+### 利用可能なWebhookエンドポイント
 
-1. **Test Webhook**
+1. **テスト用Webhook**
    ```
    POST /webhook/test
    ```
-   For testing webhook connectivity
+   Webhook接続のテスト用
 
 2. **Twitter Webhook**
    ```
    POST /webhook/twitter
    ```
-   For receiving Twitter data from TwitterAPI.io
+   TwitterAPI.ioからのTwitterデータ受信用
 
-### TwitterAPI.io Webhook Configuration
+### TwitterAPI.io Webhook設定
 
-Use the following URL for TwitterAPI.io webhook setup:
+TwitterAPI.ioのWebhook設定には以下のURLを使用してください：
 ```
 https://YOUR_NGROK_URL.ngrok-free.app/webhook/twitter
 ```
 
-### Monitoring Features
+### リアルタイム監視の仕組み
 
-#### Hybrid Monitoring Options
-1. **WebSocket Monitoring**: `📡 WebSocket監視開始`
-2. **Hybrid Monitoring**: `🔄 ハイブリッド監視開始` (WebSocket + Polling)
-3. **Webhook Rule Setup**: `🌐 Webhookルール追加`
-4. **Rule Activation**: `🔥 ルール有効化`
+リアルタイムツイート監視は**2段階の仕組み**で動作します：
 
-#### Debug Functions
-- `🛠️ RESTルール追加テスト`: Test REST API functionality
-- `📋 ルール一覧確認`: Check existing filter rules
-- `🔗 接続状態確認`: Check connection status
-- `🗑️ ログクリア`: Clear debug logs
+#### Step 1: Webhookルール設定（ツイート取得）
+1. **ポーリング間隔を選択**
+   - 3秒（最速・高コスト）
+   - 10秒（推奨）
+   - 30秒（バランス）
+   - 60秒（低コスト）
+   - 120秒（最低コスト）
 
-### Common Issues
+2. **Webhookルール設定**: `🌐 Webhookルール設定`
+   - TwitterAPI.ioにフィルタールールを作成・有効化（自動）
+   - 指定したポーリング間隔でツイートをチェック
+   - TwitterAPI.io → サーバーへのWebhook送信開始
 
-#### ngrok Connection Issues
-If you see "endpoint is offline":
-1. Ensure server is running on port 3002
-2. Check ngrok tunnel is active
-3. Verify the correct ngrok URL (should end with `.ngrok-free.app`)
+#### Step 2: WebSocket接続（リアルタイム表示）
+3. **WebSocket監視開始**: `📡 WebSocket監視開始`
+   - ブラウザとサーバー間でWebSocket接続確立
+   - Webhookで受信したツイートを即座にブラウザに転送
+   - 「📨 リアルタイムツイート」エリアに表示
 
-#### Webhook Not Receiving Data
-1. Check TwitterAPI.io webhook URL configuration
-2. Verify webhook rule is activated (`is_effect: 1`)
-3. Monitor ngrok web interface for incoming requests
+#### 動作フロー
+```
+Twitter → TwitterAPI.io → Webhook → サーバー → WebSocket → ブラウザ表示
+         (ポーリング間隔)  (即座)    (即座)     (即座)
+```
 
-### Development Workflow
+**重要**: 両方の設定が必要です
+- **Webhookのみ**: ツイート取得はできるがサーバーログのみ表示
+- **WebSocketのみ**: ブラウザ接続はできるがツイートが取得されない
 
-1. **Start development environment**
+#### デバッグ機能
+- `🛠️ RESTルール追加テスト`: REST API機能のテスト
+- `📋 ルール一覧確認`: 既存フィルタールールの確認
+- `🔗 接続状態確認`: 接続状態の確認
+- `🗑️ ログクリア`: デバッグログのクリア
+
+### よくある問題
+
+#### ngrok接続問題
+「endpoint is offline」と表示される場合：
+1. ポート3002でサーバーが起動していることを確認
+2. ngrokトンネルがアクティブか確認
+3. 正しいngrok URLを使用（`.ngrok-free.app`で終わる）
+
+#### Webhookでデータが受信されない場合
+1. TwitterAPI.io webhook URL設定を確認
+2. Webhookルールが有効化されているか確認（`is_effect: 1`）
+3. ngrok Web インターフェースで受信リクエストを監視
+
+### 開発ワークフロー
+
+1. **開発環境の起動**
    ```bash
-   # Terminal 1: Start server
+   # ターミナル1: サーバー起動
    npm run dev
    
-   # Terminal 2: Start ngrok
+   # ターミナル2: ngrok起動
    ngrok http 3002
    ```
 
-2. **Configure webhooks**
-   - Copy ngrok URL
-   - Set up TwitterAPI.io webhook rules
-   - Test with curl commands
+2. **Webhookの設定**
+   - ngrok URLをコピー
+   - TwitterAPI.io webhookルールを設定
+   - curlコマンドでテスト
 
-3. **Monitor real-time activity**
-   - Open real-time dashboard
-   - Start monitoring for target Twitter accounts
-   - Verify webhook data reception
+3. **リアルタイムアクティビティの監視**
+   - リアルタイムダッシュボードを開く
+   - 対象Twitterアカウントの監視を開始
+   - Webhookデータ受信を確認
 
 ## License
 

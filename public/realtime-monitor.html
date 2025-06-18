@@ -313,6 +313,70 @@
             color: #dc3545;
         }
         
+        .webhook-rules-container {
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 0.5rem;
+            padding: 1rem;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        
+        .rule-item {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 0.5rem;
+            padding: 1rem;
+            margin-bottom: 0.5rem;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9rem;
+        }
+        
+        .rule-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.5rem;
+        }
+        
+        .rule-id {
+            color: #ffc107;
+            font-weight: bold;
+        }
+        
+        .rule-status {
+            padding: 0.2rem 0.5rem;
+            border-radius: 0.3rem;
+            font-size: 0.8rem;
+            font-weight: bold;
+        }
+        
+        .rule-status.active {
+            background: #28a745;
+            color: white;
+        }
+        
+        .rule-status.inactive {
+            background: #6c757d;
+            color: white;
+        }
+        
+        .rule-details {
+            display: grid;
+            grid-template-columns: auto 1fr;
+            gap: 0.5rem;
+            font-size: 0.8rem;
+        }
+        
+        .rule-label {
+            color: rgba(255, 255, 255, 0.7);
+            font-weight: bold;
+        }
+        
+        .rule-value {
+            color: #ffffff;
+        }
+        
         @media (max-width: 768px) {
             .control-panel {
                 grid-template-columns: 1fr;
@@ -355,41 +419,25 @@
                         value="kokukoku323"
                     >
                 </div>
+                
+                <div class="input-group">
+                    <label class="input-label" for="pollingIntervalSelect">ポーリング間隔</label>
+                    <select id="pollingIntervalSelect" class="input-field">
+                        <option value="3">3秒（最速・高コスト）</option>
+                        <option value="10" selected>10秒（推奨）</option>
+                        <option value="30">30秒（バランス）</option>
+                        <option value="60">60秒（低コスト）</option>
+                        <option value="120">120秒（最低コスト）</option>
+                    </select>
+                </div>
                 <button id="startBtn" class="btn">
                     📡 WebSocket監視開始
-                </button>
-                <button id="startPollingBtn" class="btn" style="background: linear-gradient(45deg, #28a745, #20c997);">
-                    🔄 ハイブリッド監視開始
                 </button>
                 <button id="stopBtn" class="btn btn-danger" disabled>
                     ⏹️ 停止
                 </button>
             </div>
             
-            <div class="debug-panel" style="margin-top: 1rem; padding: 1rem; background: rgba(255, 255, 255, 0.02); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 0.5rem;">
-                <h3 style="margin-bottom: 1rem; color: #ffc107;">🔧 デバッグ機能</h3>
-                <div style="display: flex; gap: 1rem; flex-wrap: wrap;">
-                    <button id="testRestRuleBtn" class="btn" style="background: #6c757d;">
-                        🛠️ RESTルール追加テスト
-                    </button>
-                    <button id="webhookRuleBtn" class="btn" style="background: #007bff;">
-                        🌐 Webhookルール追加
-                    </button>
-                    <button id="activateRuleBtn" class="btn" style="background: #28a745;">
-                        🔥 ルール有効化
-                    </button>
-                    <button id="checkRulesBtn" class="btn" style="background: #6c757d;">
-                        📋 ルール一覧確認
-                    </button>
-                    <button id="clearLogsBtn" class="btn" style="background: #6c757d;">
-                        🗑️ ログクリア
-                    </button>
-                    <button id="connectionStatusBtn" class="btn" style="background: #6c757d;">
-                        🔍 接続状態確認
-                    </button>
-                </div>
-            </div>
-
             <div class="stats-container">
                 <div class="stat-card">
                     <div class="stat-number" id="totalTweets">0</div>
@@ -403,6 +451,48 @@
                     <div class="stat-number" id="currentAccount">-</div>
                     <div class="stat-label">監視中アカウント</div>
                 </div>
+            </div>
+        </div>
+
+        <div class="monitor-section">
+            <h2 class="section-title">📋 現在のWebhookルール</h2>
+            <div style="margin-bottom: 1rem; display: flex; gap: 1rem; align-items: center; flex-wrap: wrap;">
+                <button id="refreshRulesBtn" class="btn" style="background: #17a2b8;">
+                    🔄 ルール一覧更新
+                </button>
+                <label style="display: flex; align-items: center; gap: 0.5rem; color: rgba(255, 255, 255, 0.8); cursor: pointer;">
+                    <input type="checkbox" id="showAllRulesCheckbox" style="margin: 0;">
+                    全て表示（非アクティブも含む）
+                </label>
+            </div>
+            <div class="webhook-rules-container" id="webhookRulesContainer">
+                <div class="empty-state">
+                    <p>「🔄 ルール一覧更新」をクリックして現在のルールを確認</p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="monitor-section">
+            <h2 class="section-title">🔧 Webhookルール設定</h2>
+            <div style="display: flex; gap: 1rem; flex-wrap: wrap; margin-bottom: 1rem;">
+                <button id="webhookRuleBtn" class="btn" style="background: linear-gradient(45deg, #007bff, #28a745);">
+                    🌐 Webhookルール設定 (<span id="selectedInterval">10</span>秒間隔)
+                </button>
+            </div>
+        </div>
+
+        <div class="debug-panel" style="margin-top: 1rem; padding: 1rem; background: rgba(255, 255, 255, 0.02); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 0.5rem;">
+            <h3 style="margin-bottom: 1rem; color: #ffc107;">🔧 デバッグ機能</h3>
+            <div style="display: flex; gap: 1rem; flex-wrap: wrap;">
+                <button id="testRestRuleBtn" class="btn" style="background: #6c757d;">
+                    🛠️ RESTルール追加テスト
+                </button>
+                <button id="clearLogsBtn" class="btn" style="background: #6c757d;">
+                    🗑️ ログクリア
+                </button>
+                <button id="connectionStatusBtn" class="btn" style="background: #6c757d;">
+                    🔍 接続状態確認
+                </button>
             </div>
         </div>
 
@@ -436,6 +526,8 @@
                 this.connectionTimer = null;
                 this.currentUsername = '';
                 this.lastWebhookRule = null; // 最後に作成したWebhookルール情報
+                this.showAllRules = false; // デフォルトはアクティブのみ表示
+                this.cachedRules = null; // ルールデータのキャッシュ
                 
                 this.initializeElements();
                 this.bindEvents();
@@ -447,19 +539,18 @@
                     statusIndicator: document.getElementById('statusIndicator'),
                     usernameInput: document.getElementById('usernameInput'),
                     startBtn: document.getElementById('startBtn'),
-                    startPollingBtn: document.getElementById('startPollingBtn'),
                     stopBtn: document.getElementById('stopBtn'),
                     totalTweets: document.getElementById('totalTweets'),
                     connectionTime: document.getElementById('connectionTime'),
                     currentAccount: document.getElementById('currentAccount'),
                     tweetsContainer: document.getElementById('tweetsContainer'),
-                    connectionLog: document.getElementById('connectionLog')
+                    connectionLog: document.getElementById('connectionLog'),
+                    webhookRulesContainer: document.getElementById('webhookRulesContainer')
                 };
             }
             
             bindEvents() {
                 this.elements.startBtn.addEventListener('click', () => this.startMonitoring());
-                this.elements.startPollingBtn.addEventListener('click', () => this.startHybridMonitoring());
                 this.elements.stopBtn.addEventListener('click', () => this.stopMonitoring());
                 
                 this.elements.usernameInput.addEventListener('keypress', (e) => {
@@ -468,11 +559,27 @@
                     }
                 });
                 
+                // ポーリング間隔選択のイベントリスナー
+                document.getElementById('pollingIntervalSelect').addEventListener('change', (e) => {
+                    const interval = e.target.value;
+                    document.getElementById('selectedInterval').textContent = interval;
+                    this.addLog('info', `ポーリング間隔を${interval}秒に設定しました`);
+                });
+                
+                // Webhookルール更新ボタン
+                document.getElementById('refreshRulesBtn').addEventListener('click', () => this.refreshWebhookRules());
+                
+                // 全て表示チェックボックス
+                document.getElementById('showAllRulesCheckbox').addEventListener('change', (e) => {
+                    this.showAllRules = e.target.checked;
+                    if (this.cachedRules) {
+                        this.displayWebhookRules(this.cachedRules);
+                    }
+                });
+                
                 // デバッグ機能のイベントリスナー
                 document.getElementById('testRestRuleBtn').addEventListener('click', () => this.testRestRule());
-                document.getElementById('webhookRuleBtn').addEventListener('click', () => this.addWebhookRule());
-                document.getElementById('activateRuleBtn').addEventListener('click', () => this.activateWebhookRule());
-                document.getElementById('checkRulesBtn').addEventListener('click', () => this.checkRules());
+                document.getElementById('webhookRuleBtn').addEventListener('click', () => this.addAndActivateWebhookRule());
                 document.getElementById('clearLogsBtn').addEventListener('click', () => this.clearLogs());
                 document.getElementById('connectionStatusBtn').addEventListener('click', () => this.checkConnectionStatus());
             }
@@ -501,48 +608,6 @@
                 }
             }
             
-            async startHybridMonitoring() {
-                const username = this.elements.usernameInput.value.trim();
-                if (!username) {
-                    this.addLog('error', 'ユーザー名を入力してください');
-                    return;
-                }
-                
-                if (this.isConnected) {
-                    this.addLog('error', 'すでに監視中です');
-                    return;
-                }
-                
-                try {
-                    this.addLog('info', `@${username} のハイブリッド監視を開始します...`);
-                    
-                    // まずWebSocket接続を確立
-                    this.connectWebSocket(username);
-                    
-                    // 高頻度ポーリングを開始（WebSocketが機能しない場合のフォールバック）
-                    const pollingResponse = await fetch('/api/twitter/start-polling', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                        },
-                        body: JSON.stringify({
-                            username: username,
-                            intervalSeconds: 15 // 15秒間隔
-                        })
-                    });
-                    
-                    if (pollingResponse.ok) {
-                        const result = await pollingResponse.json();
-                        this.addLog('success', `ハイブリッド監視開始: ${result.message}`);
-                    } else {
-                        const error = await pollingResponse.json();
-                        this.addLog('warning', `ポーリング開始失敗: ${error.error?.message || 'Unknown error'}`);
-                    }
-                    
-                } catch (error) {
-                    this.addLog('error', `ハイブリッド監視開始エラー: ${error.message}`);
-                }
-            }
             
             connectWebSocket(username) {
                 try {
@@ -550,6 +615,7 @@
                     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
                     const wsUrl = `${protocol}//${window.location.host}`;
                     
+                    this.addLog('info', `WebSocket接続を試行中: ${wsUrl}`);
                     this.ws = new WebSocket(wsUrl);
                     
                     this.ws.onopen = () => {
@@ -576,7 +642,9 @@
                     };
                     
                     this.ws.onerror = (error) => {
+                        console.error('WebSocket Error:', error);
                         this.addLog('error', `WebSocketエラー: ${error.message || 'Unknown error'}`);
+                        this.addLog('error', `Error details: ${JSON.stringify(error)}`);
                     };
                     
                     this.ws.onclose = (event) => {
@@ -736,14 +804,12 @@
                 if (this.isConnected) {
                     this.elements.statusIndicator.classList.add('connected');
                     this.elements.startBtn.disabled = true;
-                    this.elements.startPollingBtn.disabled = true;
                     this.elements.stopBtn.disabled = false;
                     this.elements.usernameInput.disabled = true;
                     this.elements.currentAccount.textContent = `@${this.currentUsername}`;
                 } else {
                     this.elements.statusIndicator.classList.remove('connected');
                     this.elements.startBtn.disabled = false;
-                    this.elements.startPollingBtn.disabled = false;
                     this.elements.stopBtn.disabled = true;
                     this.elements.usernameInput.disabled = false;
                     this.elements.currentAccount.textContent = '-';
@@ -765,15 +831,17 @@
                 }, 1000);
             }
             
-            async addWebhookRule() {
+            async addAndActivateWebhookRule() {
                 const username = this.elements.usernameInput.value.trim();
                 if (!username) {
                     this.addLog('error', 'Webhookルール: ユーザー名を入力してください');
                     return;
                 }
                 
+                const selectedInterval = parseInt(document.getElementById('pollingIntervalSelect').value);
+                
                 try {
-                    this.addLog('info', `🌐 Webhookルール追加開始: @${username}`);
+                    this.addLog('info', `🌐 Webhookルール追加開始: @${username} (${selectedInterval}秒間隔)`);
                     
                     const response = await fetch('/api/twitter/webhook-rule', {
                         method: 'POST',
@@ -782,7 +850,7 @@
                         },
                         body: JSON.stringify({
                             username: username,
-                            intervalSeconds: 120 // 2分間隔
+                            intervalSeconds: selectedInterval
                         })
                     });
                     
@@ -795,7 +863,6 @@
                         this.addLog('info', `Filter: ${result.filter}`);
                         this.addLog('info', `Interval: ${result.intervalSeconds}秒`);
                         this.addLog('info', `Status: ${result.status}`);
-                        this.addLog('info', `Message: ${result.message}`);
                         
                         // ルール情報を保存
                         this.lastWebhookRule = {
@@ -806,9 +873,10 @@
                             intervalSeconds: result.intervalSeconds
                         };
                         
-                        if (result.message.includes('not activated')) {
-                            this.addLog('warning', '⚠️ ルールは作成されましたが、有効化が必要です。🔥 ルール有効化ボタンをクリックしてください。');
-                        }
+                        // 自動的にルールを有効化
+                        this.addLog('info', '🔥 ルールを自動有効化中...');
+                        await this.activateWebhookRuleInternal(result.ruleId, username, selectedInterval);
+                        
                     } else {
                         this.addLog('error', `❌ Webhookルール追加失敗: ${JSON.stringify(result.error, null, 2)}`);
                     }
@@ -818,15 +886,10 @@
                 }
             }
             
-            async activateWebhookRule() {
-                if (!this.lastWebhookRule) {
-                    this.addLog('error', '有効化するルールがありません。まず🌐 Webhookルール追加を実行してください。');
-                    return;
-                }
-                
+            async activateWebhookRuleInternal(ruleId, username, intervalSeconds) {
                 try {
-                    this.addLog('info', `🔥 Webhookルール有効化開始: @${this.lastWebhookRule.username}`);
-                    this.addLog('info', `Rule ID: ${this.lastWebhookRule.ruleId}`);
+                    this.addLog('info', `🔥 Webhookルール有効化開始: @${username}`);
+                    this.addLog('info', `Rule ID: ${ruleId}`);
                     
                     const response = await fetch('/api/twitter/activate-webhook-rule', {
                         method: 'POST',
@@ -834,11 +897,11 @@
                             'Content-Type': 'application/json'
                         },
                         body: JSON.stringify({
-                            username: this.lastWebhookRule.username,
-                            ruleId: this.lastWebhookRule.ruleId,
-                            tag: this.lastWebhookRule.tag,
-                            filter: this.lastWebhookRule.filter,
-                            intervalSeconds: this.lastWebhookRule.intervalSeconds
+                            username: username,
+                            ruleId: ruleId,
+                            tag: this.lastWebhookRule?.tag,
+                            filter: this.lastWebhookRule?.filter,
+                            intervalSeconds: intervalSeconds
                         })
                     });
                     
@@ -851,7 +914,7 @@
                         this.addLog('info', `Message: ${result.message}`);
                         this.addLog('info', `Active: ${result.isActive}`);
                         this.addLog('info', `Activated at: ${result.activatedAt}`);
-                        this.addLog('success', `✅ @${this.lastWebhookRule.username} のツイートが${this.lastWebhookRule.intervalSeconds}秒間隔で自動監視されます！`);
+                        this.addLog('success', `✅ @${username} のツイートが${intervalSeconds}秒間隔で自動監視されます！`);
                     } else {
                         this.addLog('error', `❌ Webhookルール有効化失敗: ${JSON.stringify(result.error, null, 2)}`);
                     }
@@ -915,23 +978,6 @@
                 }
             }
             
-            async checkRules() {
-                try {
-                    this.addLog('info', 'フィルタールール一覧を取得中...');
-                    
-                    const response = await fetch('/api/twitter/filter-rules');
-                    const result = await response.json();
-                    
-                    if (result.success) {
-                        this.addLog('success', `フィルタールール一覧: ${JSON.stringify(result.rules, null, 2)}`);
-                    } else {
-                        this.addLog('error', `フィルタールール取得失敗: ${JSON.stringify(result, null, 2)}`);
-                    }
-                    
-                } catch (error) {
-                    this.addLog('error', `ルール確認エラー: ${error.message}`);
-                }
-            }
             
             async checkConnectionStatus() {
                 try {
@@ -968,11 +1014,161 @@
                 this.elements.connectionLog.innerHTML = '<div class="log-entry"><span class="log-timestamp">[ログクリア]</span> <span class="log-info">ログがクリアされました</span></div>';
                 this.addLog('info', 'ログクリア完了');
             }
+            
+            async refreshWebhookRules() {
+                try {
+                    this.addLog('info', '🔄 Webhookルール一覧を取得中...');
+                    
+                    const response = await fetch('/api/twitter/webhook-rules');
+                    const result = await response.json();
+                    
+                    if (result.success) {
+                        this.cachedRules = result.rules; // ルールデータをキャッシュ
+                        this.addLog('success', `✅ Webhookルール取得成功！ (${result.totalCount}件)`);
+                        this.displayWebhookRules(result.rules);
+                    } else {
+                        this.addLog('error', `❌ Webhookルール取得失敗: ${JSON.stringify(result.error, null, 2)}`);
+                        this.elements.webhookRulesContainer.innerHTML = '<div class="empty-state"><p>ルールの取得に失敗しました</p></div>';
+                    }
+                    
+                } catch (error) {
+                    this.addLog('error', `Webhookルール取得エラー: ${error.message}`);
+                    this.elements.webhookRulesContainer.innerHTML = '<div class="empty-state"><p>ルールの取得に失敗しました</p></div>';
+                }
+            }
+            
+            displayWebhookRules(rules) {
+                if (!rules || rules.length === 0) {
+                    this.elements.webhookRulesContainer.innerHTML = '<div class="empty-state"><p>設定されているWebhookルールはありません</p></div>';
+                    return;
+                }
+                
+                // アクティブ/非アクティブでフィルタリング
+                let filteredRules = rules;
+                if (!this.showAllRules) {
+                    filteredRules = rules.filter(rule => {
+                        return rule.is_effect === 1 || rule.is_effect === '1' || rule.status === 'active';
+                    });
+                }
+                
+                if (filteredRules.length === 0) {
+                    const message = this.showAllRules ? 
+                        'Webhookルールはありません' : 
+                        'アクティブなWebhookルールはありません（「全て表示」で非アクティブも確認可能）';
+                    this.elements.webhookRulesContainer.innerHTML = `<div class="empty-state"><p>${message}</p></div>`;
+                    return;
+                }
+                
+                const rulesHtml = filteredRules.map(rule => {
+                    const isActive = rule.is_effect === 1 || rule.is_effect === '1' || rule.status === 'active';
+                    const statusClass = isActive ? 'active' : 'inactive';
+                    const statusText = isActive ? 'アクティブ' : '非アクティブ';
+                    const ruleId = rule.rule_id || rule.id;
+                    
+                    // アクティブなルールのみに削除ボタンを表示
+                    const deleteButton = isActive && ruleId ? 
+                        `<button class="btn" style="background: #dc3545; color: white; font-size: 0.8rem; padding: 0.3rem 0.6rem; margin-top: 0.5rem;" onclick="monitor.deleteWebhookRule('${ruleId}')">
+                            🗑️ ルール削除
+                        </button>` : '';
+                    
+                    return `
+                        <div class="rule-item" data-rule-id="${ruleId}">
+                            <div class="rule-header">
+                                <div class="rule-id">${ruleId || 'No ID'}</div>
+                                <div class="rule-status ${statusClass}">${statusText}</div>
+                            </div>
+                            <div class="rule-details">
+                                <div class="rule-label">タグ:</div>
+                                <div class="rule-value">${rule.tag || 'No tag'}</div>
+                                <div class="rule-label">フィルター:</div>
+                                <div class="rule-value">${rule.value || rule.filter || 'No filter'}</div>
+                                <div class="rule-label">間隔:</div>
+                                <div class="rule-value">${rule.interval_seconds || 'Unknown'}秒</div>
+                                <div class="rule-label">作成日時:</div>
+                                <div class="rule-value">${rule.created_at || rule.timestamp || 'Unknown'}</div>
+                            </div>
+                            ${deleteButton}
+                        </div>
+                    `;
+                }).join('');
+                
+                // フィルタリング情報を表示
+                const totalCount = rules.length;
+                const activeCount = filteredRules.length;
+                const filterInfo = this.showAllRules ? 
+                    `全${totalCount}件` : 
+                    `アクティブ${activeCount}件 / 全${totalCount}件`;
+                
+                this.elements.webhookRulesContainer.innerHTML = `
+                    <div style="margin-bottom: 1rem; padding: 0.5rem; background: rgba(255, 255, 255, 0.05); border-radius: 0.3rem; font-size: 0.9rem; color: rgba(255, 255, 255, 0.8);">
+                        📊 表示中: ${filterInfo}
+                    </div>
+                    ${rulesHtml}
+                `;
+            }
+            
+            async deleteWebhookRule(ruleId) {
+                if (!ruleId) {
+                    this.addLog('error', '削除するルールIDが指定されていません');
+                    return;
+                }
+                
+                // 確認ダイアログ
+                if (!confirm(`ルール「${ruleId}」を削除しますか？\n\n削除すると該当ルールでのツイート監視が停止されます。`)) {
+                    return;
+                }
+                
+                try {
+                    this.addLog('info', `🗑️ Webhookルール削除開始: ${ruleId}`);
+                    
+                    const response = await fetch(`/api/twitter/webhook-rules/${ruleId}`, {
+                        method: 'DELETE',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        }
+                    });
+                    
+                    const result = await response.json();
+                    
+                    if (result.success) {
+                        this.addLog('success', `✅ Webhookルール削除成功: ${ruleId}`);
+                        
+                        // ルール要素をDOMから削除（アニメーション付き）
+                        const ruleElement = document.querySelector(`[data-rule-id="${ruleId}"]`);
+                        if (ruleElement) {
+                            ruleElement.style.transition = 'opacity 0.3s ease';
+                            ruleElement.style.opacity = '0';
+                            setTimeout(() => {
+                                ruleElement.remove();
+                            }, 300);
+                        }
+                        
+                        // キャッシュからも削除
+                        if (this.cachedRules) {
+                            this.cachedRules = this.cachedRules.filter(rule => 
+                                (rule.rule_id || rule.id) !== ruleId
+                            );
+                        }
+                        
+                        // 3秒後にルール一覧を更新
+                        setTimeout(() => {
+                            this.refreshWebhookRules();
+                        }, 3000);
+                        
+                    } else {
+                        this.addLog('error', `❌ Webhookルール削除失敗: ${JSON.stringify(result.error, null, 2)}`);
+                    }
+                    
+                } catch (error) {
+                    this.addLog('error', `Webhookルール削除エラー: ${error.message}`);
+                }
+            }
         }
         
         // ページ読み込み完了時に初期化
+        let monitor;
         document.addEventListener('DOMContentLoaded', () => {
-            new TwitterRealtimeMonitor();
+            monitor = new TwitterRealtimeMonitor();
         });
     </script>
 </body>
