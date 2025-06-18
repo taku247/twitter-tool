@@ -1019,23 +1019,29 @@ function broadcastToClients(message) {
     const messageStr = JSON.stringify(message);
     console.log(`📡 Broadcasting to ${connectedClients.size} clients:`, message.type || 'unknown');
     
+    // Vercel環境では、リアルタイムツイートをバッファに保存
+    if (message.type === 'tweet' && message.tweet) {
+        recentTweets.unshift({
+            ...message.tweet,
+            receivedAt: Date.now()
+        });
+        
+        // 最大50件まで保持
+        if (recentTweets.length > 50) {
+            recentTweets = recentTweets.slice(0, 50);
+        }
+        
+        console.log(`🐦 Tweet buffered for polling clients. Buffer size: ${recentTweets.length}`);
+    }
+    
+    // WebSocketクライアントがある場合は従来通り送信
     if (connectedClients.size === 0) {
-        console.log('⚠️ No clients connected to receive message');
+        console.log('⚠️ No WebSocket clients connected, tweet saved to buffer for polling');
         return;
     }
     
     connectedClients.forEach((client) => {
-        if (client.type === 'sse') {
-            // Server-Sent Events クライアント
-            try {
-                client.res.write(`data: ${messageStr}\n\n`);
-                console.log('✅ Message sent to SSE client');
-            } catch (error) {
-                console.log('❌ SSE client error, removing from connectedClients');
-                connectedClients.delete(client);
-            }
-        } else if (client.readyState === WebSocket.OPEN) {
-            // WebSocket クライアント
+        if (client.readyState === WebSocket.OPEN) {
             client.send(messageStr);
             console.log('✅ Message sent to WebSocket client');
         } else {
@@ -1046,34 +1052,19 @@ function broadcastToClients(message) {
 }
 
 // Vercel環境用：ポーリングベースのリアルタイム更新エンドポイント
-app.get('/api/realtime/tweets', (req, res) => {
-    // Server-Sent Events (SSE) を使用
-    res.writeHead(200, {
-        'Content-Type': 'text/event-stream',
-        'Cache-Control': 'no-cache',
-        'Connection': 'keep-alive',
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Headers': 'Cache-Control'
-    });
-
-    // クライアントを接続リストに追加
-    const clientId = Date.now();
-    connectedClients.add({ id: clientId, res, type: 'sse' });
-    
-    console.log(`SSE client connected: ${clientId}`);
-    
-    // 接続確認メッセージを送信
-    res.write(`data: ${JSON.stringify({
-        type: 'connection',
-        message: 'リアルタイム接続が確立されました'
-    })}\n\n`);
-    
-    // クライアント切断時の処理
-    req.on('close', () => {
-        console.log(`SSE client disconnected: ${clientId}`);
-        connectedClients.delete({ id: clientId, res, type: 'sse' });
+// 最新ツイートを取得するAPIエンドポイント
+app.get('/api/realtime/latest', (req, res) => {
+    res.json({
+        success: true,
+        latestTweets: recentTweets.slice(0, 5), // 最新5件
+        timestamp: Date.now(),
+        isMonitoring: !!currentMonitoringUsername,
+        monitoringUser: currentMonitoringUsername
     });
 });
+
+// リアルタイムツイート用のバッファ
+let recentTweets = [];
 
 // WebSocket用フィルタールール事前設定関数
 async function setupFilterRuleForWebSocket(username) {

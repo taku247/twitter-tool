@@ -1182,9 +1182,9 @@
                     const isVercel = window.location.hostname.includes('vercel.app');
                     
                     if (isVercel) {
-                        // Vercel環境ではServer-Sent Events (SSE) を使用
-                        this.addLog('info', 'Vercel環境を検出 - Server-Sent Eventsを使用');
-                        this.connectSSE(username);
+                        // Vercel環境ではポーリング方式を使用
+                        this.addLog('info', 'Vercel環境を検出 - ポーリング方式を使用');
+                        this.connectPolling(username);
                         return;
                     }
                     
@@ -1245,52 +1245,66 @@
                 }
             }
             
-            connectSSE(username) {
+            connectPolling(username) {
                 try {
-                    this.addLog('info', 'Server-Sent Events接続を開始...');
+                    this.addLog('info', 'ポーリング監視を開始...');
                     
-                    // SSE接続を確立
-                    this.eventSource = new EventSource('/api/realtime/tweets');
+                    this.isConnected = true;
+                    this.currentUsername = username;
+                    this.startTime = new Date();
+                    this.updateUI();
+                    this.lastTweetTimestamp = 0;
                     
-                    this.eventSource.onopen = () => {
-                        this.addLog('success', 'リアルタイム接続が確立されました (SSE)');
-                        this.isConnected = true;
-                        this.currentUsername = username;
-                        this.startTime = new Date();
-                        this.updateUI();
-                    };
+                    this.addLog('success', 'リアルタイム監視が開始されました (ポーリング方式)');
                     
-                    this.eventSource.onmessage = (event) => {
-                        try {
-                            const data = JSON.parse(event.data);
-                            this.handleWebSocketMessage(data);
-                        } catch (error) {
-                            this.addLog('error', `SSEメッセージ解析エラー: ${error.message}`);
-                        }
-                    };
-                    
-                    this.eventSource.onerror = (error) => {
-                        console.error('SSE Error:', error);
-                        this.addLog('error', 'Server-Sent Eventsエラーが発生しました');
-                        
-                        // 接続が切れた場合の処理
-                        if (this.eventSource.readyState === EventSource.CLOSED) {
-                            this.isConnected = false;
-                            this.updateUI();
-                            
-                            // 自動再接続
-                            this.addLog('info', '5秒後にSSE再接続を試行します...');
-                            setTimeout(() => {
-                                if (!this.isConnected && this.currentUsername) {
-                                    this.connectSSE(this.currentUsername);
-                                }
-                            }, 5000);
-                        }
-                    };
+                    // ポーリング開始
+                    this.startPolling();
                     
                 } catch (error) {
-                    this.addLog('error', `SSE接続エラー: ${error.message}`);
+                    this.addLog('error', `ポーリング接続エラー: ${error.message}`);
                 }
+            }
+            
+            startPolling() {
+                if (this.pollingInterval) {
+                    clearInterval(this.pollingInterval);
+                }
+                
+                // 1.5秒間隔でポーリング（無料プランでも使用可能）
+                this.pollingInterval = setInterval(async () => {
+                    if (!this.isConnected) {
+                        clearInterval(this.pollingInterval);
+                        return;
+                    }
+                    
+                    try {
+                        const response = await fetch('/api/realtime/latest');
+                        const data = await response.json();
+                        
+                        if (data.success && data.latestTweets) {
+                            // 新しいツイートをフィルタリング
+                            const newTweets = data.latestTweets.filter(tweet => 
+                                tweet.receivedAt > this.lastTweetTimestamp
+                            );
+                            
+                            if (newTweets.length > 0) {
+                                // 最新のタイムスタンプを更新
+                                this.lastTweetTimestamp = Math.max(...newTweets.map(t => t.receivedAt));
+                                
+                                // 新しいツイートを表示（古い順に）
+                                newTweets.reverse().forEach(tweet => {
+                                    this.handleWebSocketMessage({
+                                        type: 'tweet',
+                                        tweet: tweet
+                                    });
+                                });
+                            }
+                        }
+                    } catch (error) {
+                        console.error('Polling error:', error);
+                        // エラーログは控えめに（1.5秒間隔なので）
+                    }
+                }, 1500);
             }
             
             handleWebSocketMessage(data) {
@@ -1378,7 +1392,7 @@
             }
             
             async stopMonitoring() {
-                if (!this.isConnected && !this.ws && !this.eventSource) {
+                if (!this.isConnected && !this.ws && !this.pollingInterval) {
                     this.addLog('error', '監視が開始されていません');
                     return;
                 }
@@ -1392,10 +1406,10 @@
                         this.ws = null;
                     }
                     
-                    // SSE接続を閉じる
-                    if (this.eventSource) {
-                        this.eventSource.close();
-                        this.eventSource = null;
+                    // ポーリングを停止
+                    if (this.pollingInterval) {
+                        clearInterval(this.pollingInterval);
+                        this.pollingInterval = null;
                     }
                     
                     // ポーリングも停止
