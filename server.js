@@ -25,13 +25,13 @@ if (!process.env.TWITTER_API_KEY) {
 
 // Firebase 初期化
 const firebaseConfig = {
-    apiKey: "AIzaSyDQjXHJCl1CGlANgKYBXpV3a1g6M1hT6nY",
-    authDomain: "twitter-tool-29c9d.firebaseapp.com",
-    databaseURL: "https://twitter-tool-29c9d-default-rtdb.firebaseio.com",
-    projectId: "twitter-tool-29c9d",
-    storageBucket: "twitter-tool-29c9d.firebasestorage.app",
-    messagingSenderId: "905094598616",
-    appId: "1:905094598616:web:fe6a8fefd6ff5b5fb4dd9a"
+    apiKey: "AIzaSyAME5BfBd-xfOpV-Mb7x2Q_XS9wG_jrwXA",
+    authDomain: "meme-coin-tracker-79c24.firebaseapp.com",
+    projectId: "meme-coin-tracker-79c24",
+    storageBucket: "meme-coin-tracker-79c24.firebasestorage.app",
+    messagingSenderId: "944579690444",
+    appId: "1:944579690444:web:4f452680c38ff17caa2769",
+    measurementId: "G-78KWRC4N05"
 };
 
 const firebaseApp = initializeApp(firebaseConfig);
