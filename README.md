@@ -251,6 +251,54 @@ Twitter → TwitterAPI.io → Webhook → サーバー → WebSocket → ブラ�
    - 対象Twitterアカウントの監視を開始
    - Webhookデータ受信を確認
 
+## 本番環境での運用
+
+### Webhook URL設定
+
+**⚠️ 重要**: ngrokは開発・テスト環境専用です。本番環境では専用のWebhook URLを用意してください。
+
+#### 本番環境での要件
+
+1. **固定ドメイン**: ngrokの一時的なURLではなく、固定のドメインが必要
+   ```
+   例: https://your-domain.com/webhook/twitter
+   ```
+
+2. **HTTPS必須**: TwitterAPI.ioはHTTPS接続のみサポート
+   - SSL証明書が正しく設定されていること
+   - Let's Encryptやクラウドプロバイダーの証明書を使用
+
+3. **本番デプロイ**: Vercel、Heroku、AWS、GCPなどにデプロイ
+   ```bash
+   # Vercelの場合
+   vercel --prod
+   
+   # 本番URL例
+   https://twitter-tool-eight.vercel.app/webhook/twitter
+   ```
+
+#### TwitterAPI.io設定更新
+
+本番環境では以下のWebhook URLを設定：
+```
+https://your-production-domain.com/webhook/twitter
+```
+
+#### 環境変数の設定
+
+本番環境の環境変数も適切に設定してください：
+```bash
+TWITTER_API_KEY=your_production_api_key
+OPENAI_API_KEY=your_production_openai_key
+```
+
+#### セキュリティ考慮事項
+
+- Webhook署名検証の実装（推奨）
+- Rate limiting対策
+- エラーハンドリングの強化
+- ログ監視の設定
+
 ## License
 
 MIT

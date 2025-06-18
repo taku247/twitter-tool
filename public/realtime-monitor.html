@@ -330,6 +330,13 @@
             margin-bottom: 0.5rem;
             font-family: 'Courier New', monospace;
             font-size: 0.9rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .rule-item:hover {
+            background: rgba(255, 255, 255, 0.08);
+            border-color: rgba(255, 255, 255, 0.2);
         }
         
         .rule-header {
@@ -361,12 +368,6 @@
             color: white;
         }
         
-        .rule-details {
-            display: grid;
-            grid-template-columns: auto 1fr;
-            gap: 0.5rem;
-            font-size: 0.8rem;
-        }
         
         .rule-label {
             color: rgba(255, 255, 255, 0.7);
@@ -377,14 +378,332 @@
             color: #ffffff;
         }
         
+        .rule-summary {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.5rem;
+        }
+        
+        .rule-basic-info {
+            display: flex;
+            gap: 1rem;
+            font-size: 0.8rem;
+            color: rgba(255, 255, 255, 0.9);
+        }
+        
+        .rule-expand-icon {
+            color: rgba(255, 255, 255, 0.6);
+            font-size: 0.8rem;
+            transition: transform 0.3s ease;
+        }
+        
+        .rule-item.expanded .rule-expand-icon {
+            transform: rotate(90deg);
+        }
+        
+        .rule-details {
+            display: none;
+            grid-template-columns: auto 1fr;
+            gap: 0.5rem;
+            font-size: 0.8rem;
+            margin-top: 0.5rem;
+            padding-top: 0.5rem;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .rule-item.expanded .rule-details {
+            display: grid;
+        }
+        
+        .rule-actions {
+            margin-top: 0.5rem;
+        }
+        
+        /* サイドパネルスタイル */
+        .settings-toggle-btn {
+            position: fixed;
+            top: 100px;
+            left: 20px;
+            z-index: 1001;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 1rem 1.5rem;
+            border-radius: 60px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            box-shadow: 0 10px 30px rgba(102, 126, 234, 0.4);
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 0.6rem;
+        }
+        
+        .settings-toggle-btn:hover {
+            transform: translateY(-3px) scale(1.05);
+            box-shadow: 0 15px 40px rgba(102, 126, 234, 0.5);
+            background: linear-gradient(135deg, #7c3aed 0%, #8b5cf6 100%);
+        }
+        
+        .settings-toggle-btn:active {
+            transform: translateY(-1px) scale(1.02);
+        }
+        
+        .settings-toggle-btn::before {
+            content: '⚡';
+            font-size: 1.2rem;
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+            100% { transform: scale(1); }
+        }
+        
+        .side-panel {
+            position: fixed;
+            top: 0;
+            left: -80vw;
+            width: 80vw;
+            max-width: 900px;
+            height: 100vh;
+            background: rgba(0, 0, 0, 0.95);
+            backdrop-filter: blur(10px);
+            border-right: 1px solid rgba(255, 255, 255, 0.1);
+            transition: left 0.3s ease;
+            z-index: 1002;
+            overflow-y: auto;
+        }
+        
+        .side-panel.open {
+            left: 0;
+        }
+        
+        .side-panel-header {
+            padding: 1.5rem 1.5rem 1rem 1.5rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .side-panel-title {
+            font-size: 1.2rem;
+            font-weight: 600;
+            color: #ffffff;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin: 0;
+        }
+        
+        .close-panel-btn {
+            background: none;
+            border: none;
+            color: rgba(255, 255, 255, 0.7);
+            font-size: 1.5rem;
+            cursor: pointer;
+            padding: 0.5rem;
+            border-radius: 50%;
+            transition: all 0.3s ease;
+        }
+        
+        .close-panel-btn:hover {
+            background: rgba(255, 255, 255, 0.1);
+            color: #ffffff;
+        }
+        
+        .side-panel-content {
+            padding: 1.5rem;
+        }
+        
+        .overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 1001;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s ease;
+        }
+        
+        .overlay.show {
+            opacity: 1;
+            visibility: visible;
+        }
+        
+        /* メインコンテンツエリア */
+        .main-content {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+            min-height: calc(100vh - 120px);
+        }
+        
+        .tweets-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2rem;
+            padding-bottom: 1rem;
+            border-bottom: 2px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .tweets-title {
+            font-size: 2rem;
+            font-weight: 600;
+            color: #ffffff;
+            margin: 0;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .tweets-status {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+        
+        .connection-status {
+            padding: 0.5rem 1rem;
+            border-radius: 20px;
+            font-size: 0.9rem;
+            font-weight: 500;
+            background: rgba(220, 53, 69, 0.2);
+            color: #dc3545;
+            border: 1px solid rgba(220, 53, 69, 0.3);
+            transition: all 0.3s ease;
+        }
+        
+        .connection-status.connected {
+            background: rgba(40, 167, 69, 0.2);
+            color: #28a745;
+            border-color: rgba(40, 167, 69, 0.3);
+        }
+        
+        /* ツイートコンテナの調整 */
+        .tweets-container {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 1rem;
+            padding: 1.5rem;
+            min-height: 50vh;
+            max-height: 60vh;
+            overflow-y: auto;
+        }
+        
+        /* 監視状態表示 */
+        .monitoring-status {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 0.8rem;
+            padding: 1.2rem;
+            margin-bottom: 1.5rem;
+        }
+        
+        .monitoring-status-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: #ffffff;
+            margin-bottom: 0.8rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .monitoring-status-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+        }
+        
+        .status-item {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 0.5rem;
+            padding: 0.8rem;
+        }
+        
+        .status-item-label {
+            color: rgba(255, 255, 255, 0.6);
+            font-size: 0.8rem;
+            margin-bottom: 0.3rem;
+        }
+        
+        .status-item-value {
+            color: #ffffff;
+            font-size: 0.95rem;
+            font-weight: 500;
+        }
+        
+        .status-item-value.active {
+            color: #28a745;
+        }
+        
+        .status-item-value.inactive {
+            color: #dc3545;
+        }
+        
+        /* サイドパネル内の要素調整 */
+        .side-panel .input-group {
+            margin-bottom: 1.5rem;
+        }
+        
+        .side-panel .input-field {
+            font-size: 0.9rem;
+            padding: 0.6rem;
+        }
+        
+        .side-panel .input-label {
+            font-size: 0.9rem;
+            margin-bottom: 0.5rem;
+        }
+        
+        .control-buttons {
+            margin: 1.5rem 0;
+        }
+        
         @media (max-width: 768px) {
-            .control-panel {
-                grid-template-columns: 1fr;
-                gap: 1rem;
+            .side-panel {
+                width: 100vw;
+                left: -100vw;
+                max-width: none;
             }
             
-            .stats-container {
-                grid-template-columns: 1fr 1fr;
+            .main-content {
+                padding: 1rem;
+            }
+            
+            .tweets-header {
+                flex-direction: column;
+                gap: 1rem;
+                text-align: center;
+            }
+            
+            .tweets-title {
+                font-size: 1.5rem;
+            }
+            
+            .settings-toggle-btn {
+                top: 80px;
+                left: 15px;
+                padding: 0.8rem 1.2rem;
+                font-size: 0.9rem;
+            }
+            
+            .settings-toggle-btn::before {
+                font-size: 1rem;
+            }
+            
+            .monitoring-status-grid {
+                grid-template-columns: 1fr;
             }
         }
     </style>
@@ -401,106 +720,146 @@
         </nav>
     </header>
 
-    <div class="container">
-        <div class="monitor-section">
-            <h2 class="section-title">
+    <!-- 設定パネル開閉ボタン -->
+    <button id="toggleSettingsBtn" class="settings-toggle-btn">
+        監視設定
+    </button>
+
+    <!-- サイドパネル（設定エリア） -->
+    <div class="side-panel" id="sidePanel">
+        <div class="side-panel-header">
+            <h2 class="side-panel-title">
                 <span class="status-indicator" id="statusIndicator"></span>
-                リアルタイム監視コントロール
+                リアルタイム監視設定
             </h2>
-            
-            <div class="control-panel">
-                <div class="input-group">
-                    <label class="input-label" for="usernameInput">監視するTwitterアカウント</label>
+            <button id="closePanelBtn" class="close-panel-btn">✕</button>
+        </div>
+        
+        <div class="side-panel-content">
+            <div class="input-group">
+                <label class="input-label" for="usernameInput">監視するTwitterアカウント</label>
+                <div style="display: flex; gap: 0.5rem; align-items: stretch;">
                     <input 
                         type="text" 
                         id="usernameInput" 
                         class="input-field" 
                         placeholder="例: kokukoku323 (@ は不要)"
                         value="kokukoku323"
+                        style="flex: 1;"
                     >
+                    <button id="verifyUserBtn" class="btn" style="background: #17a2b8; color: white; padding: 0.5rem 1rem; font-size: 0.9rem; white-space: nowrap;">
+                        🔍 確認
+                    </button>
                 </div>
-                
-                <div class="input-group">
-                    <label class="input-label" for="pollingIntervalSelect">ポーリング間隔</label>
-                    <select id="pollingIntervalSelect" class="input-field">
-                        <option value="3">3秒（最速・高コスト）</option>
-                        <option value="10" selected>10秒（推奨）</option>
-                        <option value="30">30秒（バランス）</option>
-                        <option value="60">60秒（低コスト）</option>
-                        <option value="120">120秒（最低コスト）</option>
-                    </select>
-                </div>
-                <button id="startBtn" class="btn">
-                    📡 WebSocket監視開始
+                <div id="userVerificationResult" style="margin-top: 0.5rem; display: none;"></div>
+            </div>
+            
+            <div class="input-group">
+                <label class="input-label" for="pollingIntervalSelect">ポーリング間隔</label>
+                <select id="pollingIntervalSelect" class="input-field">
+                    <option value="3">3秒（最速・高コスト）</option>
+                    <option value="10" selected>10秒（推奨）</option>
+                    <option value="30">30秒（バランス）</option>
+                    <option value="60">60秒（低コスト）</option>
+                    <option value="120">120秒（最低コスト）</option>
+                </select>
+            </div>
+            
+            <div class="control-buttons">
+                <button id="webhookRuleBtn" class="btn" style="background: linear-gradient(45deg, #007bff, #28a745); width: 100%; margin-bottom: 0.5rem;" disabled>
+                    🌐 Webhookルール追加 (<span id="selectedInterval">10</span>秒間隔)
                 </button>
-                <button id="stopBtn" class="btn btn-danger" disabled>
-                    ⏹️ 停止
+                <button id="toggleMonitoringBtn" class="btn" style="background: #28a745; color: white; padding: 0.5rem 1rem; font-size: 0.9rem; width: 100%;">
+                    📡 WebSocket監視開始
                 </button>
             </div>
             
-            <div class="stats-container">
-                <div class="stat-card">
-                    <div class="stat-number" id="totalTweets">0</div>
-                    <div class="stat-label">受信ツイート数</div>
+            <div class="monitor-section" style="margin-top: 1rem;">
+                <h3 class="section-title" style="font-size: 1.1rem;">📋 現在のWebhookルール</h3>
+                <div style="margin-bottom: 1rem; display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
+                    <button id="refreshRulesBtn" class="btn" style="background: #17a2b8; font-size: 0.8rem; padding: 0.3rem 0.6rem;">
+                        🔄 更新
+                    </button>
+                    <label style="display: flex; align-items: center; gap: 0.3rem; color: rgba(255, 255, 255, 0.8); cursor: pointer; font-size: 0.8rem;">
+                        <input type="checkbox" id="showAllRulesCheckbox" style="margin: 0;">
+                        全て表示
+                    </label>
                 </div>
-                <div class="stat-card">
-                    <div class="stat-number" id="connectionTime">00:00:00</div>
-                    <div class="stat-label">接続時間</div>
+                <div class="webhook-rules-container" id="webhookRulesContainer">
+                    <div class="empty-state">
+                        <p style="font-size: 0.9rem;">「🔄 更新」をクリックして現在のルールを確認</p>
+                    </div>
                 </div>
-                <div class="stat-card">
-                    <div class="stat-number" id="currentAccount">-</div>
-                    <div class="stat-label">監視中アカウント</div>
+            </div>
+            
+            <div class="stats-container" style="grid-template-columns: 1fr; gap: 0.5rem;">
+                <div class="stat-card" style="padding: 0.5rem;">
+                    <div class="stat-number" id="totalTweets" style="font-size: 1.2rem;">0</div>
+                    <div class="stat-label" style="font-size: 0.8rem;">受信ツイート数</div>
+                </div>
+                <div class="stat-card" style="padding: 0.5rem;">
+                    <div class="stat-number" id="connectionTime" style="font-size: 1.2rem;">00:00:00</div>
+                    <div class="stat-label" style="font-size: 0.8rem;">接続時間</div>
+                </div>
+                <div class="stat-card" style="padding: 0.5rem;">
+                    <div class="stat-number" id="currentAccount" style="font-size: 1.2rem;">-</div>
+                    <div class="stat-label" style="font-size: 0.8rem;">監視中アカウント</div>
+                </div>
+            </div>
+
+            <div class="debug-panel" style="margin-top: 1rem; padding: 0.8rem; background: rgba(255, 255, 255, 0.02); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 0.5rem;">
+                <h3 style="margin-bottom: 0.8rem; color: #ffc107; font-size: 1rem;">🔧 デバッグ機能</h3>
+                <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                    <button id="testRestRuleBtn" class="btn" style="background: #6c757d; font-size: 0.8rem; padding: 0.3rem 0.6rem;">
+                        🛠️ RESTテスト
+                    </button>
+                    <button id="clearLogsBtn" class="btn" style="background: #6c757d; font-size: 0.8rem; padding: 0.3rem 0.6rem;">
+                        🗑️ ログクリア
+                    </button>
+                    <button id="connectionStatusBtn" class="btn" style="background: #6c757d; font-size: 0.8rem; padding: 0.3rem 0.6rem;">
+                        🔍 接続状態
+                    </button>
                 </div>
             </div>
         </div>
+    </div>
 
-        <div class="monitor-section">
-            <h2 class="section-title">📋 現在のWebhookルール</h2>
-            <div style="margin-bottom: 1rem; display: flex; gap: 1rem; align-items: center; flex-wrap: wrap;">
-                <button id="refreshRulesBtn" class="btn" style="background: #17a2b8;">
-                    🔄 ルール一覧更新
-                </button>
-                <label style="display: flex; align-items: center; gap: 0.5rem; color: rgba(255, 255, 255, 0.8); cursor: pointer;">
-                    <input type="checkbox" id="showAllRulesCheckbox" style="margin: 0;">
-                    全て表示（非アクティブも含む）
-                </label>
+    <!-- オーバーレイ -->
+    <div class="overlay" id="overlay"></div>
+
+    <!-- メインコンテンツエリア -->
+    <div class="main-content">
+        <div class="tweets-header">
+            <h2 class="tweets-title">📨 リアルタイムツイート</h2>
+            <div class="tweets-status">
+                <span class="connection-status" id="connectionStatus">未接続</span>
             </div>
-            <div class="webhook-rules-container" id="webhookRulesContainer">
-                <div class="empty-state">
-                    <p>「🔄 ルール一覧更新」をクリックして現在のルールを確認</p>
+        </div>
+        
+        <!-- 監視状態表示 -->
+        <div class="monitoring-status" id="monitoringStatus">
+            <h3 class="monitoring-status-title">
+                📊 現在の監視状態
+            </h3>
+            <div class="monitoring-status-grid" style="grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));">
+                <div class="status-item">
+                    <div class="status-item-label">Webhookルール</div>
+                    <div class="status-item-value" id="webhookStatus">未設定</div>
+                </div>
+                <div class="status-item">
+                    <div class="status-item-label">Websocket（リアルタイム監視）</div>
+                    <div class="status-item-value" id="websocketStatus">未接続</div>
+                </div>
+                <div class="status-item">
+                    <div class="status-item-label">監視アカウント</div>
+                    <div class="status-item-value" id="monitoringAccount">-</div>
                 </div>
             </div>
         </div>
         
-        <div class="monitor-section">
-            <h2 class="section-title">🔧 Webhookルール設定</h2>
-            <div style="display: flex; gap: 1rem; flex-wrap: wrap; margin-bottom: 1rem;">
-                <button id="webhookRuleBtn" class="btn" style="background: linear-gradient(45deg, #007bff, #28a745);">
-                    🌐 Webhookルール設定 (<span id="selectedInterval">10</span>秒間隔)
-                </button>
-            </div>
-        </div>
-
-        <div class="debug-panel" style="margin-top: 1rem; padding: 1rem; background: rgba(255, 255, 255, 0.02); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 0.5rem;">
-            <h3 style="margin-bottom: 1rem; color: #ffc107;">🔧 デバッグ機能</h3>
-            <div style="display: flex; gap: 1rem; flex-wrap: wrap;">
-                <button id="testRestRuleBtn" class="btn" style="background: #6c757d;">
-                    🛠️ RESTルール追加テスト
-                </button>
-                <button id="clearLogsBtn" class="btn" style="background: #6c757d;">
-                    🗑️ ログクリア
-                </button>
-                <button id="connectionStatusBtn" class="btn" style="background: #6c757d;">
-                    🔍 接続状態確認
-                </button>
-            </div>
-        </div>
-
-        <div class="monitor-section">
-            <h2 class="section-title">📨 リアルタイムツイート</h2>
-            <div class="tweets-container" id="tweetsContainer">
-                <div class="empty-state">
-                    <p>アカウントを指定して監視を開始してください</p>
+        <div class="tweets-container" id="tweetsContainer">
+            <div class="empty-state">
+                <p>設定パネルでアカウントを指定して監視を開始してください</p>
                 </div>
             </div>
         </div>
@@ -528,36 +887,52 @@
                 this.lastWebhookRule = null; // 最後に作成したWebhookルール情報
                 this.showAllRules = false; // デフォルトはアクティブのみ表示
                 this.cachedRules = null; // ルールデータのキャッシュ
+                this.hasActiveRules = false; // アクティブルールの存在状態
+                this.userVerified = false; // ユーザー確認状態
+                this.verifiedUserData = null; // 確認済みユーザーデータ
                 
                 this.initializeElements();
                 this.bindEvents();
+                this.bindPanelEvents(); // サイドパネルイベントを追加
                 this.updateConnectionTime();
+                this.updateWebSocketButtonState(); // 初期状態でボタンを無効化
+                this.updateWebhookRuleButtonState(); // 初期状態でWebhookルールボタンを無効化
+                this.updateMonitoringStatus(); // 監視状態を初期化
             }
             
             initializeElements() {
                 this.elements = {
                     statusIndicator: document.getElementById('statusIndicator'),
                     usernameInput: document.getElementById('usernameInput'),
-                    startBtn: document.getElementById('startBtn'),
-                    stopBtn: document.getElementById('stopBtn'),
+                    toggleMonitoringBtn: document.getElementById('toggleMonitoringBtn'),
                     totalTweets: document.getElementById('totalTweets'),
                     connectionTime: document.getElementById('connectionTime'),
                     currentAccount: document.getElementById('currentAccount'),
                     tweetsContainer: document.getElementById('tweetsContainer'),
                     connectionLog: document.getElementById('connectionLog'),
-                    webhookRulesContainer: document.getElementById('webhookRulesContainer')
+                    webhookRulesContainer: document.getElementById('webhookRulesContainer'),
+                    // サイドパネル要素
+                    sidePanel: document.getElementById('sidePanel'),
+                    overlay: document.getElementById('overlay'),
+                    connectionStatus: document.getElementById('connectionStatus'),
+                    // 監視状態要素
+                    webhookStatus: document.getElementById('webhookStatus'),
+                    websocketStatus: document.getElementById('websocketStatus'),
+                    monitoringAccount: document.getElementById('monitoringAccount')
                 };
             }
             
             bindEvents() {
-                this.elements.startBtn.addEventListener('click', () => this.startMonitoring());
-                this.elements.stopBtn.addEventListener('click', () => this.stopMonitoring());
+                this.elements.toggleMonitoringBtn.addEventListener('click', () => this.toggleMonitoring());
                 
                 this.elements.usernameInput.addEventListener('keypress', (e) => {
-                    if (e.key === 'Enter' && !this.isConnected) {
-                        this.startMonitoring();
+                    if (e.key === 'Enter') {
+                        this.verifyUser();
                     }
                 });
+                
+                // ユーザー確認ボタン
+                document.getElementById('verifyUserBtn').addEventListener('click', () => this.verifyUser());
                 
                 // ポーリング間隔選択のイベントリスナー
                 document.getElementById('pollingIntervalSelect').addEventListener('change', (e) => {
@@ -584,6 +959,191 @@
                 document.getElementById('connectionStatusBtn').addEventListener('click', () => this.checkConnectionStatus());
             }
             
+            bindPanelEvents() {
+                // 設定パネル開閉
+                document.getElementById('toggleSettingsBtn').addEventListener('click', () => this.openPanel());
+                document.getElementById('closePanelBtn').addEventListener('click', () => this.closePanel());
+                this.elements.overlay.addEventListener('click', () => this.closePanel());
+                
+                // ESCキーでパネルを閉じる
+                document.addEventListener('keydown', (e) => {
+                    if (e.key === 'Escape' && this.elements.sidePanel.classList.contains('open')) {
+                        this.closePanel();
+                    }
+                });
+            }
+            
+            openPanel() {
+                this.elements.sidePanel.classList.add('open');
+                this.elements.overlay.classList.add('show');
+                document.body.style.overflow = 'hidden'; // スクロール防止
+            }
+            
+            closePanel() {
+                this.elements.sidePanel.classList.remove('open');
+                this.elements.overlay.classList.remove('show');
+                document.body.style.overflow = ''; // スクロール復元
+            }
+            
+            async verifyUser() {
+                const username = this.elements.usernameInput.value.trim();
+                if (!username) {
+                    this.addLog('error', 'ユーザー名を入力してください');
+                    return;
+                }
+                
+                const verifyBtn = document.getElementById('verifyUserBtn');
+                const resultDiv = document.getElementById('userVerificationResult');
+                
+                try {
+                    // ボタンを無効化
+                    verifyBtn.disabled = true;
+                    verifyBtn.textContent = '🔄 確認中...';
+                    
+                    this.addLog('info', `@${username} の存在確認中...`);
+                    
+                    // ユーザーのツイートを1件取得してアカウントを確認
+                    const response = await fetch('/api/twitter/user-tweets', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            username: username,
+                            count: 1
+                        })
+                    });
+                    
+                    const result = await response.json();
+                    
+                    if (result.success && result.tweets && result.tweets.length > 0) {
+                        // ユーザー確認成功
+                        this.userVerified = true;
+                        this.verifiedUserData = {
+                            username: username,
+                            user: result.user,
+                            latestTweet: result.tweets[0]
+                        };
+                        
+                        // 確認結果を表示
+                        const user = result.user;
+                        const tweet = result.tweets[0];
+                        resultDiv.innerHTML = `
+                            <div style="padding: 0.8rem; background: rgba(40, 167, 69, 0.1); border: 1px solid rgba(40, 167, 69, 0.3); border-radius: 0.5rem; color: #28a745;">
+                                <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">
+                                    <span style="font-size: 1.2rem;">✅</span>
+                                    <strong>@${user.username}</strong>
+                                    <span style="color: rgba(255, 255, 255, 0.7);">${user.name}</span>
+                                </div>
+                                <div style="font-size: 0.9rem; color: rgba(255, 255, 255, 0.8); margin-bottom: 0.5rem;">
+                                    最新ツイート: ${new Date(tweet.created_at).toLocaleString('ja-JP')}
+                                </div>
+                                <div style="background: rgba(255, 255, 255, 0.05); padding: 0.5rem; border-radius: 0.3rem; font-size: 0.85rem; line-height: 1.4;">
+                                    ${tweet.text.length > 100 ? tweet.text.substring(0, 100) + '...' : tweet.text}
+                                </div>
+                                <button onclick="monitor.confirmUser()" style="margin-top: 0.5rem; background: #28a745; color: white; border: none; padding: 0.4rem 0.8rem; border-radius: 0.3rem; cursor: pointer; font-size: 0.9rem;">
+                                    ✅ このアカウントで確定
+                                </button>
+                            </div>
+                        `;
+                        resultDiv.style.display = 'block';
+                        
+                        this.addLog('success', `✅ @${username} の確認完了`);
+                        this.addLog('info', `ユーザー名: ${user.name}`);
+                        this.addLog('info', `最新ツイート: ${new Date(tweet.created_at).toLocaleString('ja-JP')}`);
+                        
+                    } else {
+                        // ユーザー確認失敗
+                        this.userVerified = false;
+                        this.verifiedUserData = null;
+                        
+                        resultDiv.innerHTML = `
+                            <div style="padding: 0.8rem; background: rgba(220, 53, 69, 0.1); border: 1px solid rgba(220, 53, 69, 0.3); border-radius: 0.5rem; color: #dc3545;">
+                                <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                    <span style="font-size: 1.2rem;">❌</span>
+                                    <strong>@${username} が見つかりません</strong>
+                                </div>
+                                <div style="font-size: 0.9rem; color: rgba(255, 255, 255, 0.7); margin-top: 0.3rem;">
+                                    アカウントが存在しないか、非公開アカウントの可能性があります
+                                </div>
+                            </div>
+                        `;
+                        resultDiv.style.display = 'block';
+                        
+                        this.addLog('error', `❌ @${username} が見つかりません`);
+                        this.addLog('info', 'アカウント名を確認してください');
+                    }
+                    
+                } catch (error) {
+                    this.userVerified = false;
+                    this.verifiedUserData = null;
+                    
+                    resultDiv.innerHTML = `
+                        <div style="padding: 0.8rem; background: rgba(220, 53, 69, 0.1); border: 1px solid rgba(220, 53, 69, 0.3); border-radius: 0.5rem; color: #dc3545;">
+                            <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                <span style="font-size: 1.2rem;">⚠️</span>
+                                <strong>確認エラー</strong>
+                            </div>
+                            <div style="font-size: 0.9rem; color: rgba(255, 255, 255, 0.7); margin-top: 0.3rem;">
+                                ${error.message}
+                            </div>
+                        </div>
+                    `;
+                    resultDiv.style.display = 'block';
+                    
+                    this.addLog('error', `ユーザー確認エラー: ${error.message}`);
+                } finally {
+                    // ボタンを復元
+                    verifyBtn.disabled = false;
+                    verifyBtn.textContent = '🔍 確認';
+                    this.updateWebhookRuleButtonState();
+                }
+            }
+            
+            confirmUser() {
+                if (!this.verifiedUserData) {
+                    this.addLog('error', '確認済みユーザーデータがありません');
+                    return;
+                }
+                
+                // 確認結果を非表示
+                const resultDiv = document.getElementById('userVerificationResult');
+                resultDiv.style.display = 'none';
+                
+                // Webhookルール追加ボタンを有効化
+                this.updateWebhookRuleButtonState();
+                
+                this.addLog('success', `🎯 @${this.verifiedUserData.username} が監視対象として確定されました`);
+                this.addLog('info', '次に「🌐 Webhookルール追加」をクリックしてください');
+                
+                // 監視状態を更新
+                this.updateMonitoringStatus();
+            }
+            
+            updateWebhookRuleButtonState() {
+                const webhookBtn = document.getElementById('webhookRuleBtn');
+                
+                if (this.userVerified && this.verifiedUserData) {
+                    webhookBtn.disabled = false;
+                    webhookBtn.style.opacity = '1';
+                    webhookBtn.style.cursor = 'pointer';
+                    webhookBtn.title = '';
+                } else {
+                    webhookBtn.disabled = true;
+                    webhookBtn.style.opacity = '0.5';
+                    webhookBtn.style.cursor = 'not-allowed';
+                    webhookBtn.title = 'まずユーザー確認を行ってください';
+                }
+            }
+            
+            async toggleMonitoring() {
+                if (this.isConnected) {
+                    await this.stopMonitoring();
+                } else {
+                    await this.startMonitoring();
+                }
+            }
+            
             async startMonitoring() {
                 const username = this.elements.usernameInput.value.trim();
                 if (!username) {
@@ -593,6 +1153,13 @@
                 
                 if (this.isConnected) {
                     this.addLog('error', 'すでに監視中です');
+                    return;
+                }
+                
+                // アクティブルールの存在確認
+                if (!this.hasActiveRules) {
+                    this.addLog('error', '⚠️ アクティブなWebhookルールがありません');
+                    this.addLog('info', '💡 まず「🌐 Webhookルール設定」でルールを作成してください');
                     return;
                 }
                 
@@ -803,17 +1370,37 @@
                 // ステータス表示の更新
                 if (this.isConnected) {
                     this.elements.statusIndicator.classList.add('connected');
-                    this.elements.startBtn.disabled = true;
-                    this.elements.stopBtn.disabled = false;
+                    this.elements.connectionStatus.textContent = `接続中 - @${this.currentUsername}`;
+                    this.elements.connectionStatus.classList.add('connected');
+                    this.elements.toggleMonitoringBtn.textContent = '⏹️ 監視停止';
+                    this.elements.toggleMonitoringBtn.className = 'btn';
+                    this.elements.toggleMonitoringBtn.style.background = '#dc3545';
+                    this.elements.toggleMonitoringBtn.style.color = 'white';
+                    this.elements.toggleMonitoringBtn.style.padding = '0.5rem 1rem';
+                    this.elements.toggleMonitoringBtn.style.fontSize = '0.9rem';
+                    this.elements.toggleMonitoringBtn.style.width = '100%';
+                    this.elements.toggleMonitoringBtn.disabled = false;
                     this.elements.usernameInput.disabled = true;
                     this.elements.currentAccount.textContent = `@${this.currentUsername}`;
                 } else {
                     this.elements.statusIndicator.classList.remove('connected');
-                    this.elements.startBtn.disabled = false;
-                    this.elements.stopBtn.disabled = true;
+                    this.elements.connectionStatus.textContent = '未接続';
+                    this.elements.connectionStatus.classList.remove('connected');
+                    this.elements.toggleMonitoringBtn.textContent = '📡 WebSocket監視開始';
+                    this.elements.toggleMonitoringBtn.className = 'btn';
+                    this.elements.toggleMonitoringBtn.style.background = '#28a745';
+                    this.elements.toggleMonitoringBtn.style.color = 'white';
+                    this.elements.toggleMonitoringBtn.style.padding = '0.5rem 1rem';
+                    this.elements.toggleMonitoringBtn.style.fontSize = '0.9rem';
+                    this.elements.toggleMonitoringBtn.style.width = '100%';
                     this.elements.usernameInput.disabled = false;
                     this.elements.currentAccount.textContent = '-';
+                    // アクティブルール状態に応じてボタンを制御
+                    this.updateWebSocketButtonState();
                 }
+                
+                // 監視状態を更新
+                this.updateMonitoringStatus();
             }
             
             updateConnectionTime() {
@@ -832,11 +1419,13 @@
             }
             
             async addAndActivateWebhookRule() {
-                const username = this.elements.usernameInput.value.trim();
-                if (!username) {
-                    this.addLog('error', 'Webhookルール: ユーザー名を入力してください');
+                // 確認済みユーザーデータを使用
+                if (!this.userVerified || !this.verifiedUserData) {
+                    this.addLog('error', 'まずユーザー確認を行ってください');
                     return;
                 }
+                
+                const username = this.verifiedUserData.username;
                 
                 const selectedInterval = parseInt(document.getElementById('pollingIntervalSelect').value);
                 
@@ -876,6 +1465,17 @@
                         // 自動的にルールを有効化
                         this.addLog('info', '🔥 ルールを自動有効化中...');
                         await this.activateWebhookRuleInternal(result.ruleId, username, selectedInterval);
+                        
+                        // アクティブルール状態を更新
+                        this.hasActiveRules = true;
+                        this.updateWebSocketButtonState();
+                        
+                        // Webhookルール一覧を自動更新
+                        this.addLog('info', '🔄 Webhookルール一覧を更新中...');
+                        setTimeout(() => {
+                            this.refreshWebhookRules();
+                            this.updateMonitoringStatus();
+                        }, 1000); // 1秒後に更新（サーバー反映を待つ）
                         
                     } else {
                         this.addLog('error', `❌ Webhookルール追加失敗: ${JSON.stringify(result.error, null, 2)}`);
@@ -1045,10 +1645,28 @@
                 
                 // アクティブ/非アクティブでフィルタリング
                 let filteredRules = rules;
+                const activeRules = rules.filter(rule => {
+                    return rule.is_effect === 1 || rule.is_effect === '1' || rule.status === 'active';
+                });
+                
+                // アクティブルール状態を更新
+                const previousActiveState = this.hasActiveRules;
+                this.hasActiveRules = activeRules.length > 0;
+                
+                // 監視中にアクティブルールがなくなった場合は自動停止
+                if (previousActiveState && !this.hasActiveRules && this.isConnected) {
+                    this.addLog('warning', '⚠️ アクティブなWebhookルールがすべて無効になりました');
+                    this.addLog('info', '🔄 WebSocket監視を自動停止します...');
+                    this.stopMonitoring();
+                } else {
+                    this.updateWebSocketButtonState();
+                }
+                
+                // 監視状態を更新
+                this.updateMonitoringStatus();
+                
                 if (!this.showAllRules) {
-                    filteredRules = rules.filter(rule => {
-                        return rule.is_effect === 1 || rule.is_effect === '1' || rule.status === 'active';
-                    });
+                    filteredRules = activeRules;
                 }
                 
                 if (filteredRules.length === 0) {
@@ -1064,30 +1682,45 @@
                     const statusClass = isActive ? 'active' : 'inactive';
                     const statusText = isActive ? 'アクティブ' : '非アクティブ';
                     const ruleId = rule.rule_id || rule.id;
+                    const filter = rule.value || rule.filter || 'No filter';
+                    const interval = rule.interval_seconds || 'Unknown';
                     
                     // アクティブなルールのみに削除ボタンを表示
                     const deleteButton = isActive && ruleId ? 
-                        `<button class="btn" style="background: #dc3545; color: white; font-size: 0.8rem; padding: 0.3rem 0.6rem; margin-top: 0.5rem;" onclick="monitor.deleteWebhookRule('${ruleId}')">
+                        `<button class="btn" style="background: #dc3545; color: white; font-size: 0.8rem; padding: 0.3rem 0.6rem;" onclick="event.stopPropagation(); monitor.deleteWebhookRule('${ruleId}')">
                             🗑️ ルール削除
                         </button>` : '';
                     
                     return `
-                        <div class="rule-item" data-rule-id="${ruleId}">
+                        <div class="rule-item" data-rule-id="${ruleId}" onclick="monitor.toggleRuleDetails('${ruleId}')">
                             <div class="rule-header">
                                 <div class="rule-id">${ruleId || 'No ID'}</div>
                                 <div class="rule-status ${statusClass}">${statusText}</div>
+                            </div>
+                            <div class="rule-summary">
+                                <div class="rule-basic-info">
+                                    <span><strong>フィルター:</strong> ${filter}</span>
+                                    <span><strong>間隔:</strong> ${interval}秒</span>
+                                </div>
+                                <div class="rule-expand-icon">▶</div>
                             </div>
                             <div class="rule-details">
                                 <div class="rule-label">タグ:</div>
                                 <div class="rule-value">${rule.tag || 'No tag'}</div>
                                 <div class="rule-label">フィルター:</div>
-                                <div class="rule-value">${rule.value || rule.filter || 'No filter'}</div>
+                                <div class="rule-value">${filter}</div>
                                 <div class="rule-label">間隔:</div>
-                                <div class="rule-value">${rule.interval_seconds || 'Unknown'}秒</div>
+                                <div class="rule-value">${interval}秒</div>
                                 <div class="rule-label">作成日時:</div>
                                 <div class="rule-value">${rule.created_at || rule.timestamp || 'Unknown'}</div>
+                                <div class="rule-label">is_effect:</div>
+                                <div class="rule-value">${rule.is_effect}</div>
+                                <div class="rule-label">Raw Data:</div>
+                                <div class="rule-value" style="font-size: 0.7rem; color: rgba(255, 255, 255, 0.6);">${JSON.stringify(rule, null, 2)}</div>
                             </div>
-                            ${deleteButton}
+                            <div class="rule-actions">
+                                ${deleteButton}
+                            </div>
                         </div>
                     `;
                 }).join('');
@@ -1113,8 +1746,20 @@
                     return;
                 }
                 
+                // 最後のアクティブルールかどうかをチェック
+                const currentActiveRules = this.cachedRules ? 
+                    this.cachedRules.filter(rule => 
+                        (rule.is_effect === 1 || rule.is_effect === '1' || rule.status === 'active')
+                    ) : [];
+                const isLastActiveRule = currentActiveRules.length === 1;
+                
                 // 確認ダイアログ
-                if (!confirm(`ルール「${ruleId}」を削除しますか？\n\n削除すると該当ルールでのツイート監視が停止されます。`)) {
+                let confirmMessage = `ルール「${ruleId}」を削除しますか？\n\n削除すると該当ルールでのツイート監視が停止されます。`;
+                if (isLastActiveRule && this.isConnected) {
+                    confirmMessage += '\n\n⚠️ これは最後のアクティブルールです。削除するとWebSocket監視も自動的に停止されます。';
+                }
+                
+                if (!confirm(confirmMessage)) {
                     return;
                 }
                 
@@ -1150,9 +1795,26 @@
                             );
                         }
                         
+                        // キャッシュからルールを削除後、アクティブルール状態をチェック
+                        const remainingActiveRules = this.cachedRules ? 
+                            this.cachedRules.filter(rule => 
+                                (rule.is_effect === 1 || rule.is_effect === '1' || rule.status === 'active')
+                            ) : [];
+                        this.hasActiveRules = remainingActiveRules.length > 0;
+                        
+                        // アクティブルールがなくなり、WebSocket監視中の場合は自動停止
+                        if (!this.hasActiveRules && this.isConnected) {
+                            this.addLog('warning', '⚠️ アクティブなWebhookルールがすべて削除されました');
+                            this.addLog('info', '🔄 WebSocket監視を自動停止します...');
+                            await this.stopMonitoring();
+                        } else {
+                            this.updateWebSocketButtonState();
+                        }
+                        
                         // 3秒後にルール一覧を更新
                         setTimeout(() => {
                             this.refreshWebhookRules();
+                            this.updateMonitoringStatus();
                         }, 3000);
                         
                     } else {
@@ -1163,12 +1825,95 @@
                     this.addLog('error', `Webhookルール削除エラー: ${error.message}`);
                 }
             }
+            
+            toggleRuleDetails(ruleId) {
+                const ruleElement = document.querySelector(`[data-rule-id="${ruleId}"]`);
+                if (ruleElement) {
+                    ruleElement.classList.toggle('expanded');
+                }
+            }
+            
+            updateWebSocketButtonState() {
+                const toggleBtn = this.elements.toggleMonitoringBtn;
+                
+                if (!this.hasActiveRules && !this.isConnected) {
+                    // アクティブルールがない場合、ボタンを無効化
+                    toggleBtn.disabled = true;
+                    toggleBtn.style.opacity = '0.5';
+                    toggleBtn.style.cursor = 'not-allowed';
+                    toggleBtn.title = 'アクティブなWebhookルールが必要です';
+                    // 基本スタイルは維持
+                    toggleBtn.style.background = '#28a745';
+                    toggleBtn.style.color = 'white';
+                    toggleBtn.style.padding = '0.5rem 1rem';
+                    toggleBtn.style.fontSize = '0.9rem';
+                } else if (!this.isConnected) {
+                    // アクティブルールがある場合、ボタンを有効化
+                    toggleBtn.disabled = false;
+                    toggleBtn.style.opacity = '1';
+                    toggleBtn.style.cursor = 'pointer';
+                    toggleBtn.title = '';
+                    // 基本スタイルを適用
+                    toggleBtn.style.background = '#28a745';
+                    toggleBtn.style.color = 'white';
+                    toggleBtn.style.padding = '0.5rem 1rem';
+                    toggleBtn.style.fontSize = '0.9rem';
+                }
+                // 接続中の場合は既存のupdateUI()で制御
+            }
+            
+            updateMonitoringStatus() {
+                // Webhookルール状態（詳細表示）
+                if (this.hasActiveRules && this.cachedRules) {
+                    const activeRules = this.cachedRules.filter(r => r.is_effect === 1 || r.is_effect === '1');
+                    let rulesHtml = '';
+                    
+                    activeRules.forEach((rule, index) => {
+                        // ルールからTwitterIDを抽出（from:username形式から）
+                        const filterMatch = rule.filter && rule.filter.match(/from:(\w+)/);
+                        const twitterId = filterMatch ? filterMatch[1] : '不明';
+                        const interval = rule.interval_seconds || rule.intervalSeconds || '不明';
+                        
+                        rulesHtml += `<div style="margin-bottom: 0.3rem; font-size: 0.85rem;">
+                            📍 @${twitterId} (${interval}秒間隔)
+                        </div>`;
+                    });
+                    
+                    this.elements.webhookStatus.innerHTML = rulesHtml;
+                    this.elements.webhookStatus.className = 'status-item-value active';
+                } else {
+                    this.elements.webhookStatus.textContent = '未設定';
+                    this.elements.webhookStatus.className = 'status-item-value inactive';
+                }
+                
+                // WebSocket接続状態
+                if (this.isConnected) {
+                    this.elements.websocketStatus.textContent = '接続中';
+                    this.elements.websocketStatus.className = 'status-item-value active';
+                } else {
+                    this.elements.websocketStatus.textContent = '未接続';
+                    this.elements.websocketStatus.className = 'status-item-value inactive';
+                }
+                
+                // 監視アカウント
+                if (this.verifiedUserData) {
+                    this.elements.monitoringAccount.textContent = `@${this.verifiedUserData.username}`;
+                    this.elements.monitoringAccount.className = 'status-item-value';
+                } else {
+                    this.elements.monitoringAccount.textContent = '-';
+                    this.elements.monitoringAccount.className = 'status-item-value';
+                }
+            }
         }
         
         // ページ読み込み完了時に初期化
         let monitor;
         document.addEventListener('DOMContentLoaded', () => {
             monitor = new TwitterRealtimeMonitor();
+            // ページ読み込み時に自動でWebhookルール一覧を更新
+            setTimeout(() => {
+                monitor.refreshWebhookRules();
+            }, 500); // 0.5秒後に実行（初期化完了を待つ）
         });
     </script>
 </body>
