@@ -752,6 +752,9 @@
                     </button>
                 </div>
                 <div id="userVerificationResult" style="margin-top: 0.5rem; display: none;"></div>
+                <div style="margin-top: 0.5rem; padding: 0.5rem; background: rgba(255, 193, 7, 0.1); border: 1px solid rgba(255, 193, 7, 0.3); border-radius: 0.4rem; font-size: 0.85rem; color: rgba(255, 193, 7, 0.9);">
+                    ⚠️ 注意: この入力欄はWebhookルール作成用です。WebSocket監視は<strong>全てのアクティブルール</strong>を対象とします。
+                </div>
             </div>
             
             <div class="input-group">
@@ -770,7 +773,7 @@
                     🌐 Webhookルール追加 (<span id="selectedInterval">10</span>秒間隔)
                 </button>
                 <button id="toggleMonitoringBtn" class="btn" style="background: #28a745; color: white; padding: 0.5rem 1rem; font-size: 0.9rem; width: 100%;">
-                    📡 WebSocket監視開始
+                    📡 Websocket（リアルタイム監視）開始
                 </button>
             </div>
             
@@ -803,7 +806,7 @@
                 </div>
                 <div class="stat-card" style="padding: 0.5rem;">
                     <div class="stat-number" id="currentAccount" style="font-size: 1.2rem;">-</div>
-                    <div class="stat-label" style="font-size: 0.8rem;">監視中アカウント</div>
+                    <div class="stat-label" style="font-size: 0.8rem;">アクティブルール数</div>
                 </div>
             </div>
 
@@ -851,7 +854,7 @@
                     <div class="status-item-value" id="websocketStatus">未接続</div>
                 </div>
                 <div class="status-item">
-                    <div class="status-item-label">監視アカウント</div>
+                    <div class="status-item-label">アクティブルール</div>
                     <div class="status-item-value" id="monitoringAccount">-</div>
                 </div>
             </div>
@@ -859,7 +862,7 @@
         
         <div class="tweets-container" id="tweetsContainer">
             <div class="empty-state">
-                <p>設定パネルでアカウントを指定して監視を開始してください</p>
+                <p>1. 設定パネルでWebhookルールを追加<br>2. 「Websocket（リアルタイム監視）開始」をクリック<br>3. 全てのアクティブルールからのツイートがここに表示されます</p>
                 </div>
             </div>
         </div>
@@ -1145,12 +1148,6 @@
             }
             
             async startMonitoring() {
-                const username = this.elements.usernameInput.value.trim();
-                if (!username) {
-                    this.addLog('error', 'ユーザー名を入力してください');
-                    return;
-                }
-                
                 if (this.isConnected) {
                     this.addLog('error', 'すでに監視中です');
                     return;
@@ -1164,11 +1161,17 @@
                 }
                 
                 try {
-                    this.addLog('info', `@${username} の監視を開始します...`);
+                    // アクティブルール数を取得
+                    const activeRules = this.cachedRules ? 
+                        this.cachedRules.filter(rule => 
+                            (rule.is_effect === 1 || rule.is_effect === '1' || rule.status === 'active')
+                        ) : [];
+                    
+                    this.addLog('info', `全てのアクティブルール (${activeRules.length}件) の監視を開始します...`);
                     
                     // WebSocket接続を直接確立
                     this.addLog('info', 'WebSocket接続を確立中...');
-                    this.connectWebSocket(username);
+                    this.connectWebSocket();
                     
                 } catch (error) {
                     this.addLog('error', `監視開始エラー: ${error.message}`);
@@ -1176,7 +1179,7 @@
             }
             
             
-            connectWebSocket(username) {
+            connectWebSocket() {
                 try {
                     // Vercel環境の検出
                     const isVercel = window.location.hostname.includes('vercel.app');
@@ -1184,7 +1187,7 @@
                     if (isVercel) {
                         // Vercel環境ではポーリング方式を使用
                         this.addLog('info', 'Vercel環境を検出 - ポーリング方式を使用');
-                        this.connectPolling(username);
+                        this.connectPolling();
                         return;
                     }
                     
@@ -1198,14 +1201,14 @@
                     this.ws.onopen = () => {
                         this.addLog('success', 'WebSocket接続が確立されました');
                         this.isConnected = true;
-                        this.currentUsername = username;
+                        this.currentUsername = 'all-active-rules';
                         this.startTime = new Date();
                         this.updateUI();
                         
-                        // 監視するユーザーを指定
+                        // 全アクティブルールの監視を指定
                         this.ws.send(JSON.stringify({
                             action: 'monitor',
-                            username: username
+                            target: 'all-active-rules'
                         }));
                     };
                     
@@ -1233,8 +1236,8 @@
                         if (event.code !== 1000) { // 正常終了以外の場合
                             this.addLog('info', '5秒後に再接続を試行します...');
                             setTimeout(() => {
-                                if (!this.isConnected && this.currentUsername) {
-                                    this.connectWebSocket(this.currentUsername);
+                                if (!this.isConnected && this.hasActiveRules) {
+                                    this.connectWebSocket();
                                 }
                             }, 5000);
                         }
@@ -1245,12 +1248,12 @@
                 }
             }
             
-            connectPolling(username) {
+            connectPolling() {
                 try {
                     this.addLog('info', 'ポーリング監視を開始...');
                     
                     this.isConnected = true;
-                    this.currentUsername = username;
+                    this.currentUsername = 'all-active-rules';
                     this.startTime = new Date();
                     this.updateUI();
                     this.lastTweetTimestamp = 0;
@@ -1447,8 +1450,14 @@
             updateUI() {
                 // ステータス表示の更新
                 if (this.isConnected) {
+                    // アクティブルール数を取得
+                    const activeRules = this.cachedRules ? 
+                        this.cachedRules.filter(rule => 
+                            (rule.is_effect === 1 || rule.is_effect === '1' || rule.status === 'active')
+                        ) : [];
+                    
                     this.elements.statusIndicator.classList.add('connected');
-                    this.elements.connectionStatus.textContent = `接続中 - @${this.currentUsername}`;
+                    this.elements.connectionStatus.textContent = `監視中 - ${activeRules.length}件のアクティブルール`;
                     this.elements.connectionStatus.classList.add('connected');
                     this.elements.toggleMonitoringBtn.textContent = '⏹️ 監視停止';
                     this.elements.toggleMonitoringBtn.className = 'btn';
@@ -1459,12 +1468,12 @@
                     this.elements.toggleMonitoringBtn.style.width = '100%';
                     this.elements.toggleMonitoringBtn.disabled = false;
                     this.elements.usernameInput.disabled = true;
-                    this.elements.currentAccount.textContent = `@${this.currentUsername}`;
+                    this.elements.currentAccount.textContent = `${activeRules.length}件`;
                 } else {
                     this.elements.statusIndicator.classList.remove('connected');
                     this.elements.connectionStatus.textContent = '未接続';
                     this.elements.connectionStatus.classList.remove('connected');
-                    this.elements.toggleMonitoringBtn.textContent = '📡 WebSocket監視開始';
+                    this.elements.toggleMonitoringBtn.textContent = '📡 Websocket（リアルタイム監視）開始';
                     this.elements.toggleMonitoringBtn.className = 'btn';
                     this.elements.toggleMonitoringBtn.style.background = '#28a745';
                     this.elements.toggleMonitoringBtn.style.color = 'white';
@@ -1973,13 +1982,14 @@
                     this.elements.websocketStatus.className = 'status-item-value inactive';
                 }
                 
-                // 監視アカウント
-                if (this.verifiedUserData) {
-                    this.elements.monitoringAccount.textContent = `@${this.verifiedUserData.username}`;
-                    this.elements.monitoringAccount.className = 'status-item-value';
+                // アクティブルール数
+                if (this.hasActiveRules && this.cachedRules) {
+                    const activeRules = this.cachedRules.filter(r => r.is_effect === 1 || r.is_effect === '1');
+                    this.elements.monitoringAccount.textContent = `${activeRules.length}件`;
+                    this.elements.monitoringAccount.className = 'status-item-value active';
                 } else {
-                    this.elements.monitoringAccount.textContent = '-';
-                    this.elements.monitoringAccount.className = 'status-item-value';
+                    this.elements.monitoringAccount.textContent = '0件';
+                    this.elements.monitoringAccount.className = 'status-item-value inactive';
                 }
             }
         }

@@ -5,6 +5,8 @@ const path = require('path');
 const { OpenAI } = require('openai');
 const WebSocket = require('ws');
 const http = require('http');
+const { initializeApp } = require('firebase/app');
+const { getFirestore, collection, addDoc, query, orderBy, limit, getDocs, deleteDoc, doc, where, writeBatch } = require('firebase/firestore');
 require('dotenv').config();
 
 const app = express();
@@ -20,6 +22,21 @@ if (!process.env.TWITTER_API_KEY) {
     console.error('Error: TWITTER_API_KEY is not set in .env file');
     process.exit(1);
 }
+
+// Firebase 初期化
+const firebaseConfig = {
+    apiKey: "AIzaSyDQjXHJCl1CGlANgKYBXpV3a1g6M1hT6nY",
+    authDomain: "twitter-tool-29c9d.firebaseapp.com",
+    databaseURL: "https://twitter-tool-29c9d-default-rtdb.firebaseio.com",
+    projectId: "twitter-tool-29c9d",
+    storageBucket: "twitter-tool-29c9d.firebasestorage.app",
+    messagingSenderId: "905094598616",
+    appId: "1:905094598616:web:fe6a8fefd6ff5b5fb4dd9a"
+};
+
+const firebaseApp = initializeApp(firebaseConfig);
+const db = getFirestore(firebaseApp, 'twitter-tool'); // 名前付きデータベースを使用
+console.log('Firebase Firestore initialized with named database: twitter-tool');
 
 // OpenAI クライアントの初期化
 let openai = null;
@@ -1014,13 +1031,57 @@ function stopTwitterMonitoring() {
     }
 }
 
+// Firestoreにツイートを保存する関数
+async function saveTweetToFirestore(tweet) {
+    try {
+        const tweetData = {
+            ...tweet,
+            receivedAt: Date.now(),
+            createdAtFirestore: new Date()
+        };
+        
+        const docRef = await addDoc(collection(db, 'realtime-tweets'), tweetData);
+        console.log(`🔥 Tweet saved to Firestore with ID: ${docRef.id}`);
+        
+        // 古いツイートを削除（最新50件のみ保持）
+        await cleanupOldTweets();
+        
+    } catch (error) {
+        console.error('❌ Error saving tweet to Firestore:', error);
+    }
+}
+
+// 古いツイートを削除する関数
+async function cleanupOldTweets() {
+    try {
+        const tweetsRef = collection(db, 'realtime-tweets');
+        const q = query(tweetsRef, orderBy('receivedAt', 'desc'));
+        const querySnapshot = await getDocs(q);
+        
+        if (querySnapshot.size > 50) {
+            const batch = writeBatch(db);
+            const docsToDelete = querySnapshot.docs.slice(50); // 50件以降を削除
+            
+            docsToDelete.forEach((doc) => {
+                batch.delete(doc.ref);
+            });
+            
+            await batch.commit();
+            console.log(`🧹 Deleted ${docsToDelete.length} old tweets from Firestore`);
+        }
+    } catch (error) {
+        console.error('❌ Error cleaning up old tweets:', error);
+    }
+}
+
 // 全てのクライアントにメッセージをブロードキャスト
-function broadcastToClients(message) {
+async function broadcastToClients(message) {
     const messageStr = JSON.stringify(message);
     console.log(`📡 Broadcasting to ${connectedClients.size} clients:`, message.type || 'unknown');
     
-    // Vercel環境では、リアルタイムツイートをバッファに保存
+    // Vercel環境では、リアルタイムツイートをFirestoreに保存
     if (message.type === 'tweet' && message.tweet) {
+        // メモリバッファにも保存（ローカル環境用）
         recentTweets.unshift({
             ...message.tweet,
             receivedAt: Date.now()
@@ -1031,12 +1092,15 @@ function broadcastToClients(message) {
             recentTweets = recentTweets.slice(0, 50);
         }
         
-        console.log(`🐦 Tweet buffered for polling clients. Buffer size: ${recentTweets.length}`);
+        // Firestoreに永続化（Vercel環境用）
+        await saveTweetToFirestore(message.tweet);
+        
+        console.log(`🐦 Tweet buffered locally (${recentTweets.length} items) and saved to Firestore`);
     }
     
     // WebSocketクライアントがある場合は従来通り送信
     if (connectedClients.size === 0) {
-        console.log('⚠️ No WebSocket clients connected, tweet saved to buffer for polling');
+        console.log('⚠️ No WebSocket clients connected, tweet saved to buffer and Firestore for polling');
         return;
     }
     
@@ -1053,14 +1117,80 @@ function broadcastToClients(message) {
 
 // Vercel環境用：ポーリングベースのリアルタイム更新エンドポイント
 // 最新ツイートを取得するAPIエンドポイント
-app.get('/api/realtime/latest', (req, res) => {
-    res.json({
-        success: true,
-        latestTweets: recentTweets.slice(0, 5), // 最新5件
-        timestamp: Date.now(),
-        isMonitoring: !!currentMonitoringUsername,
-        monitoringUser: currentMonitoringUsername
-    });
+app.get('/api/realtime/latest', async (req, res) => {
+    try {
+        // 環境の検出
+        const isVercel = process.env.VERCEL || req.headers.host?.includes('vercel.app');
+        
+        let latestTweets = [];
+        
+        if (isVercel) {
+            // Vercel環境：Firestoreから取得
+            console.log('🔥 Vercel environment detected, fetching tweets from Firestore');
+            const tweetsRef = collection(db, 'realtime-tweets');
+            const q = query(tweetsRef, orderBy('receivedAt', 'desc'), limit(10));
+            const querySnapshot = await getDocs(q);
+            
+            latestTweets = querySnapshot.docs.map(doc => ({
+                id: doc.id,
+                ...doc.data()
+            }));
+            
+            console.log(`📥 Retrieved ${latestTweets.length} tweets from Firestore`);
+        } else {
+            // ローカル環境：メモリから取得
+            console.log('💻 Local environment detected, using in-memory buffer');
+            latestTweets = recentTweets.slice(0, 10);
+        }
+        
+        res.json({
+            success: true,
+            latestTweets: latestTweets,
+            timestamp: Date.now(),
+            isMonitoring: !!currentMonitoringUsername,
+            monitoringUser: currentMonitoringUsername,
+            environment: isVercel ? 'vercel' : 'local',
+            source: isVercel ? 'firestore' : 'memory'
+        });
+        
+    } catch (error) {
+        console.error('❌ Error fetching latest tweets:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to fetch latest tweets',
+            message: error.message
+        });
+    }
+});
+
+// Firestoreのツイート確認用デバッグエンドポイント
+app.get('/api/debug/firestore-tweets', async (req, res) => {
+    try {
+        const tweetsRef = collection(db, 'realtime-tweets');
+        const q = query(tweetsRef, orderBy('receivedAt', 'desc'), limit(20));
+        const querySnapshot = await getDocs(q);
+        
+        const tweets = querySnapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data(),
+            createdAtFirestore: doc.data().createdAtFirestore?.toDate()?.toISOString()
+        }));
+        
+        res.json({
+            success: true,
+            totalCount: querySnapshot.size,
+            tweets: tweets,
+            timestamp: Date.now()
+        });
+        
+    } catch (error) {
+        console.error('❌ Error fetching Firestore tweets:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to fetch Firestore tweets',
+            message: error.message
+        });
+    }
 });
 
 // リアルタイムツイート用のバッファ
