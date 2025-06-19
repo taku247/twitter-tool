@@ -529,6 +529,150 @@ app.post("/webhook/twitter", (req, res) => {
 -   エラーハンドリングの強化
 -   ログ監視の設定
 
+## Vercel Cron Jobs（定期実行）
+
+### 概要
+
+Vercel Cron Jobsを使用して、TwitterAPI.ioのリスト関連APIを定期実行できます。
+
+### 利用可能なエンドポイント
+
+#### TwitterAPI.io リスト機能
+- **リストメンバー取得**: `/twitter/list/members`
+  - リストのメンバー一覧を取得
+  - 1ページあたり20メンバー
+  - カーソルベースのページネーション
+
+- **リストツイート取得**: `/twitter/list/tweets`
+  - リストIDでツイート取得
+  - 1ページあたり20ツイート
+  - ツイート時間の降順でソート
+
+- **リストフォロワー取得**: `/twitter/list/followers`
+  - リストのフォロワー一覧
+  - 1ページあたり20フォロワー
+
+### Vercel Cron Jobs制限
+
+#### プラン別制限
+- **Hobbyプラン（無料）**: **2個まで**
+  - 1日1回の実行のみ
+  - 時間単位の精度のみ（分単位不可）
+  
+- **Pro・Enterpriseプラン**: **20個まで**
+  - 分単位の精度で実行可能
+  - より柔軟なスケジューリング
+
+#### 料金
+- **Cron Job自体**: ベータ期間中は無料（正式版では有料予定）
+- **実行される関数**: 標準の関数料金が適用
+  - 関数の実行回数
+  - 実行時間（GB-hours）
+  - データ転送量
+
+### 実装例
+
+#### 1. vercel.json設定
+```json
+{
+  "version": 2,
+  "crons": [
+    {
+      "path": "/api/cron/fetch-list-tweets",
+      "schedule": "0 */6 * * *"
+    },
+    {
+      "path": "/api/cron/fetch-list-members", 
+      "schedule": "0 0 * * *"
+    }
+  ],
+  "builds": [
+    {
+      "src": "server.js",
+      "use": "@vercel/node"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/(.*)",
+      "dest": "/server.js"
+    }
+  ]
+}
+```
+
+#### 2. Cron Job関数実装
+```javascript
+// /api/cron/fetch-list-tweets.js
+export default async function handler(req, res) {
+  // セキュリティチェック
+  if (req.headers.authorization !== `Bearer ${process.env.CRON_SECRET}`) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+  
+  try {
+    // TwitterAPI.ioでリストツイート取得
+    const response = await fetch(`https://api.twitterapi.io/twitter/list/tweets?list_id=123`, {
+      headers: {
+        'Authorization': `Bearer ${process.env.TWITTER_API_KEY}`
+      }
+    });
+    
+    const data = await response.json();
+    
+    // データ処理・保存
+    // ...
+    
+    res.json({ success: true, count: data.data?.length || 0 });
+  } catch (error) {
+    console.error('Cron job error:', error);
+    res.status(500).json({ error: 'Failed to fetch tweets' });
+  }
+}
+```
+
+#### 3. セキュリティ設定
+```bash
+# Vercel環境変数に追加
+CRON_SECRET=your-random-secret-string-16chars+
+TWITTER_API_KEY=your-twitterapi-io-key
+```
+
+### スケジュール例
+
+#### 複数リスト監視
+```json
+{
+  "crons": [
+    {"path": "/api/cron/list-tech", "schedule": "0 */6 * * *"},
+    {"path": "/api/cron/list-crypto", "schedule": "30 */6 * * *"},
+    {"path": "/api/cron/list-news", "schedule": "0 */8 * * *"}
+  ]
+}
+```
+
+#### 制限回避策
+- **1つのジョブで複数処理**: 単一エンドポイントで複数リストを処理
+- **条件分岐**: 時間帯により処理を分ける
+
+### 代替手段
+
+#### 1. 外部Cronサービス
+- **GitHub Actions**: 無料枠あり
+- **Cron-job.org**: 外部HTTP cronサービス
+- **Uptime Robot**: 監視+cron機能
+
+#### 2. Grok API連携（今後）
+- **xAI Grok API**: リアルタイムX(Twitter)データアクセス
+- **制限**: 現在は直接的なX検索機能なし
+- **回避策**: X API v2 + Grok API組み合わせ
+
+### 注意点
+
+- **本番環境のみ実行**: プレビューデプロイでは実行されない
+- **無効化したジョブもカウント**: 削除しない限り制限数に含まれる
+- **タイムアウト制限**: Serverless/Edge Functionと同じ制限
+
 ## License
 
 MIT
