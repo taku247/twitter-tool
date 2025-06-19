@@ -1,5 +1,15 @@
 {
   "version": 2,
+  "crons": [
+    {
+      "path": "/api/cron/fetch-list-tweets",
+      "schedule": "0 */2 * * *"
+    },
+    {
+      "path": "/api/cron/summarize-lists", 
+      "schedule": "0 0 * * *"
+    }
+  ],
   "builds": [
     {
       "src": "server.js",

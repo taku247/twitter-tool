@@ -2230,15 +2230,597 @@ process.on('SIGTERM', () => {
     process.exit(0);
 });
 
-server.listen(PORT, () => {
-    console.log(`Server is running on http://localhost:${PORT}`);
-    console.log('API Key is configured:', !!process.env.TWITTER_API_KEY);
-    
-    if (wss) {
-        console.log('WebSocket server is ready (Local development mode)');
-        console.log('🚀 Hybrid monitoring system (WebSocket + High-frequency Polling) is ready');
-    } else {
-        console.log('Server-Sent Events ready (Production/Vercel mode)');
-        console.log('🚀 Production monitoring system (SSE + Webhook polling) is ready');
+// ===== Twitter List Scheduler API =====
+
+// メモリ内ストレージ（本番環境ではFirestoreを使用）
+let registeredLists = new Map();
+let listTweets = new Map(); // listId -> tweets array
+let listStats = {
+    totalLists: 0,
+    activeLists: 0,
+    totalTweets: 0,
+    totalSummaries: 0
+};
+
+// リスト登録
+app.post('/api/lists/register', async (req, res) => {
+    try {
+        const { listId, url, frequency, cronExpression, name, active } = req.body;
+        
+        if (!listId || !url || !frequency || !name) {
+            return res.status(400).json({ error: 'Required fields missing' });
+        }
+        
+        // TwitterAPI.ioでリストの存在確認
+        try {
+            const testResponse = await axios.get(`https://api.twitterapi.io/twitter/list/tweets`, {
+                params: { list_id: listId, count: 1 },
+                headers: { 'Authorization': `Bearer ${process.env.TWITTER_API_KEY}` }
+            });
+            
+            if (!testResponse.data || testResponse.data.error) {
+                return res.status(400).json({ error: 'TwitterリストIDが見つからないか、アクセスできません' });
+            }
+        } catch (error) {
+            return res.status(400).json({ error: 'TwitterリストIDの確認に失敗しました' });
+        }
+        
+        // リスト情報を保存
+        const listData = {
+            listId,
+            url,
+            frequency,
+            cronExpression,
+            name,
+            active: active !== false,
+            createdAt: new Date().toISOString(),
+            lastUpdated: null,
+            tweetCount: 0,
+            lastTweetId: null
+        };
+        
+        registeredLists.set(listId, listData);
+        listTweets.set(listId, []);
+        
+        // 統計更新
+        updateStats();
+        
+        console.log(`New list registered: ${name} (${listId})`);
+        res.json({ success: true, listData });
+        
+    } catch (error) {
+        console.error('List registration error:', error);
+        res.status(500).json({ error: 'リスト登録に失敗しました' });
     }
 });
+
+// 登録済みリスト一覧
+app.get('/api/lists', (req, res) => {
+    const lists = Array.from(registeredLists.values());
+    res.json(lists);
+});
+
+// リスト削除
+app.delete('/api/lists/:listId', (req, res) => {
+    const { listId } = req.params;
+    
+    if (!registeredLists.has(listId)) {
+        return res.status(404).json({ error: 'リストが見つかりません' });
+    }
+    
+    registeredLists.delete(listId);
+    listTweets.delete(listId);
+    updateStats();
+    
+    console.log(`List deleted: ${listId}`);
+    res.json({ success: true });
+});
+
+// リスト有効/無効切り替え
+app.patch('/api/lists/:listId/toggle', (req, res) => {
+    const { listId } = req.params;
+    const { active } = req.body;
+    
+    if (!registeredLists.has(listId)) {
+        return res.status(404).json({ error: 'リストが見つかりません' });
+    }
+    
+    const listData = registeredLists.get(listId);
+    listData.active = active;
+    registeredLists.set(listId, listData);
+    updateStats();
+    
+    console.log(`List ${listId} ${active ? 'activated' : 'deactivated'}`);
+    res.json({ success: true });
+});
+
+// 統計情報
+app.get('/api/lists/stats', (req, res) => {
+    updateStats();
+    res.json(listStats);
+});
+
+// 統計更新関数
+function updateStats() {
+    const lists = Array.from(registeredLists.values());
+    listStats.totalLists = lists.length;
+    listStats.activeLists = lists.filter(list => list.active).length;
+    listStats.totalTweets = Array.from(listTweets.values()).reduce((sum, tweets) => sum + tweets.length, 0);
+    // totalSummaries は後で実装
+}
+
+// ツイート保存・取得エンドポイント
+app.get('/api/lists/:listId/tweets', (req, res) => {
+    const { listId } = req.params;
+    const { page = 1, limit = 20 } = req.query;
+    
+    if (!listTweets.has(listId)) {
+        return res.status(404).json({ error: 'リストが見つかりません' });
+    }
+    
+    const tweets = listTweets.get(listId);
+    const startIndex = (page - 1) * limit;
+    const endIndex = startIndex + parseInt(limit);
+    const paginatedTweets = tweets.slice(startIndex, endIndex);
+    
+    res.json({
+        tweets: paginatedTweets,
+        pagination: {
+            page: parseInt(page),
+            limit: parseInt(limit),
+            total: tweets.length,
+            totalPages: Math.ceil(tweets.length / limit)
+        }
+    });
+});
+
+// Firestoreへの保存関数
+async function saveListTweetsToFirestore(listId, tweets) {
+    try {
+        const batch = writeBatch(db);
+        
+        tweets.forEach(tweet => {
+            const docRef = doc(collection(db, 'list-tweets'));
+            batch.set(docRef, {
+                listId,
+                tweetId: tweet.id,
+                text: tweet.text,
+                author: tweet.author,
+                createdAt: tweet.created_at,
+                savedAt: new Date(),
+                data: tweet
+            });
+        });
+        
+        await batch.commit();
+        console.log(`Saved ${tweets.length} tweets to Firestore for list ${listId}`);
+    } catch (error) {
+        console.error('Error saving tweets to Firestore:', error);
+    }
+}
+
+// Firestoreからの読み込み関数
+async function loadListTweetsFromFirestore(listId) {
+    try {
+        const q = query(
+            collection(db, 'list-tweets'),
+            where('listId', '==', listId),
+            orderBy('createdAt', 'desc')
+        );
+        
+        const querySnapshot = await getDocs(q);
+        const tweets = querySnapshot.docs.map(doc => doc.data().data);
+        
+        return tweets;
+    } catch (error) {
+        console.error('Error loading tweets from Firestore:', error);
+        return [];
+    }
+}
+
+// Cron Job用のツイート取得エンドポイント
+app.post('/api/cron/fetch-list-tweets', async (req, res) => {
+    try {
+        // セキュリティチェック
+        const authHeader = req.headers.authorization;
+        if (!authHeader || authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+            return res.status(401).json({ error: 'Unauthorized' });
+        }
+        
+        console.log('🔄 Starting scheduled tweet fetch for all active lists');
+        
+        const results = {
+            success: true,
+            processedLists: 0,
+            totalTweets: 0,
+            lists: []
+        };
+        
+        // アクティブなリストのみ処理
+        const activeLists = Array.from(registeredLists.values()).filter(list => list.active);
+        
+        for (const list of activeLists) {
+            try {
+                console.log(`Fetching tweets for list: ${list.name} (${list.listId})`);
+                
+                // TwitterAPI.ioからリストツイートを取得
+                const response = await axios.get(`https://api.twitterapi.io/twitter/list/tweets`, {
+                    params: { 
+                        list_id: list.listId,
+                        count: 20,
+                        // 前回取得した最新ツイートIDがある場合は、それより新しいものを取得
+                        since_id: list.lastTweetId || undefined
+                    },
+                    headers: { 'Authorization': `Bearer ${process.env.TWITTER_API_KEY}` }
+                });
+                
+                const tweets = response.data.data || [];
+                let newTweets = [];
+                
+                if (tweets.length > 0) {
+                    // 重複チェック
+                    const existingTweets = listTweets.get(list.listId) || [];
+                    const existingIds = new Set(existingTweets.map(t => t.id));
+                    
+                    newTweets = tweets.filter(tweet => !existingIds.has(tweet.id));
+                    
+                    if (newTweets.length > 0) {
+                        // メモリに保存
+                        const updatedTweets = [...newTweets, ...existingTweets];
+                        listTweets.set(list.listId, updatedTweets);
+                        
+                        // Firestoreに保存
+                        await saveListTweetsToFirestore(list.listId, newTweets);
+                        
+                        // リスト情報更新
+                        list.lastUpdated = new Date().toISOString();
+                        list.tweetCount = updatedTweets.length;
+                        list.lastTweetId = newTweets[0].id;
+                        registeredLists.set(list.listId, list);
+                        
+                        console.log(`Added ${newTweets.length} new tweets for ${list.name}`);
+                    }
+                }
+                
+                results.processedLists++;
+                results.totalTweets += newTweets.length;
+                results.lists.push({
+                    listId: list.listId,
+                    name: list.name,
+                    newTweets: newTweets.length,
+                    totalTweets: list.tweetCount
+                });
+                
+            } catch (listError) {
+                console.error(`Error processing list ${list.listId}:`, listError);
+                results.lists.push({
+                    listId: list.listId,
+                    name: list.name,
+                    error: listError.message,
+                    newTweets: 0
+                });
+            }
+        }
+        
+        // 統計更新
+        updateStats();
+        
+        console.log(`✅ Cron job completed: ${results.processedLists} lists processed, ${results.totalTweets} new tweets`);
+        res.json(results);
+        
+    } catch (error) {
+        console.error('Cron job error:', error);
+        res.status(500).json({ 
+            success: false,
+            error: error.message
+        });
+    }
+});
+
+// 手動でリストツイート取得（テスト用）
+app.post('/api/lists/:listId/fetch', async (req, res) => {
+    try {
+        const { listId } = req.params;
+        
+        if (!registeredLists.has(listId)) {
+            return res.status(404).json({ error: 'リストが見つかりません' });
+        }
+        
+        const list = registeredLists.get(listId);
+        
+        // TwitterAPI.ioからリストツイートを取得
+        const response = await axios.get(`https://api.twitterapi.io/twitter/list/tweets`, {
+            params: { 
+                list_id: listId,
+                count: 20,
+                since_id: list.lastTweetId || undefined
+            },
+            headers: { 'Authorization': `Bearer ${process.env.TWITTER_API_KEY}` }
+        });
+        
+        const tweets = response.data.data || [];
+        let newTweets = [];
+        
+        if (tweets.length > 0) {
+            // 重複チェック
+            const existingTweets = listTweets.get(listId) || [];
+            const existingIds = new Set(existingTweets.map(t => t.id));
+            
+            newTweets = tweets.filter(tweet => !existingIds.has(tweet.id));
+            
+            if (newTweets.length > 0) {
+                // メモリに保存
+                const updatedTweets = [...newTweets, ...existingTweets];
+                listTweets.set(listId, updatedTweets);
+                
+                // Firestoreに保存
+                await saveListTweetsToFirestore(listId, newTweets);
+                
+                // リスト情報更新
+                list.lastUpdated = new Date().toISOString();
+                list.tweetCount = updatedTweets.length;
+                list.lastTweetId = newTweets[0].id;
+                registeredLists.set(listId, list);
+                
+                updateStats();
+            }
+        }
+        
+        res.json({
+            success: true,
+            newTweets: newTweets.length,
+            totalTweets: list.tweetCount,
+            tweets: newTweets
+        });
+        
+    } catch (error) {
+        console.error('Manual fetch error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// リストツイート要約エンドポイント
+app.post('/api/lists/:listId/summarize', async (req, res) => {
+    try {
+        const { listId } = req.params;
+        const { summaryType = 'detailed', deleteAfter = false } = req.body;
+        
+        if (!openai) {
+            return res.status(503).json({ error: 'OpenAI API が設定されていません' });
+        }
+        
+        if (!registeredLists.has(listId)) {
+            return res.status(404).json({ error: 'リストが見つかりません' });
+        }
+        
+        const list = registeredLists.get(listId);
+        const tweets = listTweets.get(listId) || [];
+        
+        if (tweets.length === 0) {
+            return res.status(400).json({ error: 'ツイートが保存されていません' });
+        }
+        
+        console.log(`Generating ${summaryType} summary for list ${list.name} (${tweets.length} tweets)`);
+        
+        // ツイートテキストを準備
+        const tweetTexts = tweets.map((tweet, index) => 
+            `${index + 1}. ${tweet.text}`
+        ).join('\n\n');
+        
+        // プロンプトの選択
+        let systemPrompt = '';
+        let userPrompt = '';
+        
+        if (summaryType === 'brief') {
+            systemPrompt = 'あなたは優秀なコンテンツ要約アシスタントです。与えられたツイートを簡潔に要約してください。';
+            userPrompt = `以下の${tweets.length}件のツイートを3-5行で簡潔に要約してください：\n\n${tweetTexts}`;
+        } else if (summaryType === 'detailed') {
+            systemPrompt = 'あなたは優秀なコンテンツ分析アシスタントです。与えられたツイートを詳細に分析し要約してください。';
+            userPrompt = `以下の${tweets.length}件のツイートを詳細に分析し、主要なトピック、トレンド、重要なポイントを含めて要約してください：\n\n${tweetTexts}`;
+        } else if (summaryType === 'insights') {
+            systemPrompt = 'あなたは優秀なデータアナリストです。与えられたツイートから洞察とトレンドを抽出してください。';
+            userPrompt = `以下の${tweets.length}件のツイートから重要な洞察、トレンド、パターンを分析し、ビジネス的な観点も含めて報告してください：\n\n${tweetTexts}`;
+        }
+        
+        // OpenAI APIを呼び出し
+        const completion = await openai.chat.completions.create({
+            model: 'gpt-4o-mini',
+            messages: [
+                { role: 'system', content: systemPrompt },
+                { role: 'user', content: userPrompt }
+            ],
+            max_tokens: 1500,
+            temperature: 0.7
+        });
+        
+        const summary = completion.choices[0].message.content;
+        
+        // 要約結果を保存
+        const summaryData = {
+            listId,
+            listName: list.name,
+            summaryType,
+            summary,
+            tweetCount: tweets.length,
+            createdAt: new Date().toISOString(),
+            tokensUsed: completion.usage
+        };
+        
+        // Firestoreに要約を保存
+        try {
+            await addDoc(collection(db, 'list-summaries'), summaryData);
+            console.log(`Summary saved to Firestore for list ${listId}`);
+        } catch (firestoreError) {
+            console.error('Failed to save summary to Firestore:', firestoreError);
+        }
+        
+        // 要約後にツイートを削除するオプション
+        if (deleteAfter) {
+            listTweets.set(listId, []);
+            list.tweetCount = 0;
+            list.lastTweetId = null;
+            registeredLists.set(listId, list);
+            
+            // Firestoreからも削除
+            try {
+                const q = query(collection(db, 'list-tweets'), where('listId', '==', listId));
+                const querySnapshot = await getDocs(q);
+                const batch = writeBatch(db);
+                querySnapshot.docs.forEach(doc => batch.delete(doc.ref));
+                await batch.commit();
+                console.log(`Deleted ${querySnapshot.size} tweets from Firestore for list ${listId}`);
+            } catch (deleteError) {
+                console.error('Failed to delete tweets from Firestore:', deleteError);
+            }
+            
+            updateStats();
+        }
+        
+        console.log(`✅ Summary generated for list ${list.name} (${summaryType})`);
+        res.json({
+            success: true,
+            summary,
+            summaryType,
+            tweetCount: tweets.length,
+            tokensUsed: completion.usage,
+            deleted: deleteAfter
+        });
+        
+    } catch (error) {
+        console.error('Summary generation error:', error);
+        res.status(500).json({ 
+            success: false,
+            error: error.message
+        });
+    }
+});
+
+// 要約履歴取得エンドポイント
+app.get('/api/lists/:listId/summaries', async (req, res) => {
+    try {
+        const { listId } = req.params;
+        const { limit = 10 } = req.query;
+        
+        const q = query(
+            collection(db, 'list-summaries'),
+            where('listId', '==', listId),
+            orderBy('createdAt', 'desc'),
+            limit(parseInt(limit))
+        );
+        
+        const querySnapshot = await getDocs(q);
+        const summaries = querySnapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data()
+        }));
+        
+        res.json({ summaries });
+        
+    } catch (error) {
+        console.error('Error fetching summaries:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// 定期要約用Cronジョブエンドポイント
+app.post('/api/cron/summarize-lists', async (req, res) => {
+    try {
+        // セキュリティチェック
+        const authHeader = req.headers.authorization;
+        if (!authHeader || authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+            return res.status(401).json({ error: 'Unauthorized' });
+        }
+        
+        if (!openai) {
+            return res.status(503).json({ error: 'OpenAI API が設定されていません' });
+        }
+        
+        console.log('🔄 Starting scheduled summarization for all lists');
+        
+        const results = {
+            success: true,
+            processedLists: 0,
+            totalSummaries: 0,
+            lists: []
+        };
+        
+        // ツイートが保存されているリストのみ処理
+        const listsWithTweets = Array.from(registeredLists.values())
+            .filter(list => list.active && list.tweetCount > 0);
+        
+        for (const list of listsWithTweets) {
+            try {
+                const tweets = listTweets.get(list.listId) || [];
+                
+                if (tweets.length >= 10) { // 10件以上のツイートがある場合のみ要約
+                    console.log(`Generating summary for list: ${list.name} (${tweets.length} tweets)`);
+                    
+                    // 詳細要約を生成
+                    const summaryResponse = await fetch(`${req.protocol}://${req.get('host')}/api/lists/${list.listId}/summarize`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            summaryType: 'detailed',
+                            deleteAfter: true // 要約後にツイートを削除
+                        })
+                    });
+                    
+                    if (summaryResponse.ok) {
+                        results.totalSummaries++;
+                        results.lists.push({
+                            listId: list.listId,
+                            name: list.name,
+                            tweetCount: tweets.length,
+                            summarized: true
+                        });
+                    }
+                }
+                
+                results.processedLists++;
+                
+            } catch (listError) {
+                console.error(`Error processing list ${list.listId}:`, listError);
+                results.lists.push({
+                    listId: list.listId,
+                    name: list.name,
+                    error: listError.message,
+                    summarized: false
+                });
+            }
+        }
+        
+        console.log(`✅ Summarization cron job completed: ${results.processedLists} lists processed, ${results.totalSummaries} summaries generated`);
+        res.json(results);
+        
+    } catch (error) {
+        console.error('Summarization cron job error:', error);
+        res.status(500).json({ 
+            success: false,
+            error: error.message
+        });
+    }
+});
+
+// サーバー起動
+if (process.env.VERCEL) {
+    // Vercel環境
+    module.exports = app;
+    console.log('🚀 Running in Vercel serverless mode');
+} else {
+    // ローカル環境
+    server.listen(PORT, () => {
+        console.log(`Server is running on http://localhost:${PORT}`);
+        console.log('API Key is configured:', !!process.env.TWITTER_API_KEY);
+        console.log(`📋 List Scheduler: http://localhost:${PORT}/list-scheduler.html`);
+        
+        if (wss) {
+            console.log('WebSocket server is ready (Local development mode)');
+            console.log('🚀 Hybrid monitoring system (WebSocket + High-frequency Polling) is ready');
+        } else {
+            console.log('Server-Sent Events ready (Production/Vercel mode)');
+            console.log('🚀 Production monitoring system (SSE + Webhook polling) is ready');
+        }
+    });
+}
