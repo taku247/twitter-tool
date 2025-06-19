@@ -31,7 +31,8 @@
       "Bash(npm run dev:*)",
       "Bash(grep:*)",
       "Bash(rg:*)",
-      "Bash(curl:*)"
+      "Bash(curl:*)",
+      "Bash(git fetch:*)"
     ],
     "deny": []
   }
