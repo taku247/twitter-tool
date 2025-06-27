@@ -552,23 +552,34 @@ Vercel Cron Jobsを使用して、TwitterAPI.ioのリスト関連APIを定期実
   - リストのフォロワー一覧
   - 1ページあたり20フォロワー
 
-### Vercel Cron Jobs制限
+### Vercel Cron Jobs制限（2024-2025年）
 
-#### プラン別制限
-- **Hobbyプラン（無料）**: **2個まで**
-  - 1日1回の実行のみ
-  - 時間単位の精度のみ（分単位不可）
+#### プラン別制限・料金
+- **Hobbyプラン（無料）**: 
+  - **Cronジョブ数**: **2個まで**
+  - **頻度制限**: **1時間単位のみ**（分単位不可）
+  - **Function実行回数**: **100,000回/月**
+  - **超過時**: サービス停止（リセット待ち）
   
-- **Pro・Enterpriseプラン**: **20個まで**
-  - 分単位の精度で実行可能
-  - より柔軟なスケジューリング
+- **Proプラン（$20/月）**: 
+  - **Cronジョブ数**: **40個まで**
+  - **頻度制限**: **分単位対応**
+  - **Function実行回数**: **1,000,000回/月**
+  - **超過料金**: $0.60/100万回
 
-#### 料金
-- **Cron Job自体**: ベータ期間中は無料（正式版では有料予定）
-- **実行される関数**: 標準の関数料金が適用
-  - 関数の実行回数
-  - 実行時間（GB-hours）
-  - データ転送量
+- **Enterpriseプラン**: 
+  - **Cronジョブ数**: **100個まで**
+  - **制限**: カスタム設定
+
+#### 実行頻度と使用量（Proプラン）
+| 実行間隔 | 月間実行回数 | 使用率 | 追加料金 |
+|----------|--------------|--------|----------|
+| 15分ごと | 2,880回 | 0.29% | $0 |
+| 10分ごと | 4,320回 | 0.43% | $0 |
+| 5分ごと | 8,640回 | 0.86% | $0 |
+| 1分ごと | 43,200回 | 4.32% | $0 |
+
+**結論**: Proプランなら15分間隔でも使用率0.3%で十分実用的
 
 ### 実装例
 
@@ -673,11 +684,41 @@ TWITTER_API_KEY=your-twitterapi-io-key
 - **無効化したジョブもカウント**: 削除しない限り制限数に含まれる
 - **タイムアウト制限**: Serverless/Edge Functionと同じ制限
 
-## Twitter List Scheduler（Twitterリスト定期取得システム）
+## 🚀 Twitter List Scheduler（Twitterリスト定期取得システム）
 
-### 概要
+### 📊 **システム概要**
 
-TwitterリストのツイートTrend定期取得システムを実装しました。リストを登録して定期的にツイートを収集し、ChatGPTで要約する機能です。
+**Firestore対応の本格的なTwitterリスト監視システム**を実装しました。汎用Cronタスクエンジン上で動作し、リストを登録して定期的にツイートを収集する機能です。
+
+### 🏗️ **アーキテクチャ（最新版）**
+
+#### **Firestoreベースの永続化システム**
+```
+汎用Cronエンジン
+├── cron_tasks (タスク管理マスター)
+├── twitter_lists (リスト設定)  
+├── collected_tweets (収集ツイート)
+└── cron_executions (実行ログ)
+```
+
+#### **実行フロー**
+```
+vercel.json (15分ごと実行)
+    ↓
+/api/cron/universal-executor
+    ↓
+cron_tasks (アクティブタスク取得)
+    ↓
+個別頻度チェック + 時間範囲指定取得
+    ↓
+TwitterAPI.io (sinceTime/untilTime)
+    ↓
+重複防止フィルタ (3重チェック)
+    ↓
+collected_tweets (永続保存)
+    ↓
+メタデータ更新 + 実行ログ記録
+```
 
 ### 利用可能な機能
 
@@ -691,9 +732,10 @@ TwitterリストのツイートTrend定期取得システムを実装しまし�
    - 頻度選択（30分・1時間・2時間・6時間・12時間・24時間）
    - リスト名設定（任意）
 
-2. **ツイート自動取得**
-   - TwitterAPI.ioを使用してリストツイートを取得
-   - 重複回避（`since_id`パラメータ使用）
+2. **ツイート自動取得（最新実装）**
+   - TwitterAPI.ioの`sinceTime`/`untilTime`パラメータで効率的取得
+   - 3分マージンでの確実な増分取得
+   - 3重重複防止（時間フィルタ + ID比較 + DB重複チェック）
    - Firestoreに永続保存
 
 3. **要約機能**
@@ -708,29 +750,106 @@ TwitterリストのツイートTrend定期取得システムを実装しまし�
    - リスト有効/無効切り替え
    - 手動ツイート取得機能
 
-### API エンドポイント
+### 🗄️ **Firestoreデータベーススキーマ**
 
-#### リスト管理
-```
-POST /api/lists/register      # リスト登録
-GET  /api/lists              # リスト一覧取得
-DELETE /api/lists/:listId    # リスト削除
-PATCH /api/lists/:listId/toggle # 有効/無効切り替え
-GET  /api/lists/stats        # 統計情報取得
+#### **cron_tasks (タスク管理マスター)**
+```javascript
+{
+    taskId: "task-1704110400-abc123",
+    taskType: "twitter_list",
+    name: "AI関連リスト - 定期取得", 
+    description: "AI関連のツイートを60分ごとに取得",
+    frequency: 60,                    // 実行頻度（分）
+    active: true,                     // 有効/無効
+    createdAt: "2024-01-01T12:00:00Z",
+    lastExecuted: "2024-01-01T12:00:00Z",
+    nextExecution: "2024-01-01T13:00:00Z",
+    executionCount: 125,              // 実行回数
+    successCount: 123,                // 成功回数
+    errorCount: 2,                    // エラー回数
+    lastError: null,                  // 最新エラー
+    config: {
+        relatedTableId: "list-1704110400-def456"  // twitter_listsの参照
+    }
+}
 ```
 
-#### ツイート取得・管理
-```
-GET  /api/lists/:listId/tweets        # 保存済みツイート取得
-POST /api/lists/:listId/fetch         # 手動ツイート取得
-POST /api/cron/fetch-list-tweets      # Cron用一括取得
+#### **twitter_lists (リスト設定)**
+```javascript
+{
+    listId: "list-1704110400-def456",         // 内部管理ID
+    twitterListId: "123456789",               // TwitterのリストID
+    name: "AI関連の人たち",
+    url: "https://twitter.com/i/lists/123456789",
+    lastExecuted: "2024-01-01T12:00:00Z",    // 最終実行時刻
+    lastTweetId: "1745678901234567890",       // 重複回避用
+    tweetCount: 125,                          // 保存済みツイート数
+    createdAt: "2024-01-01T00:00:00Z",
+    updatedAt: "2024-01-01T12:00:00Z"
+}
 ```
 
-#### 要約機能
+#### **collected_tweets (収集ツイート)**
+```javascript
+{
+    tweetId: "1745678901234567890",           // Twitter固有ID
+    sourceType: "twitter_list",               // 収集元タイプ
+    sourceId: "list-1704110400-def456",       // twitter_listsのlistId
+    taskId: "task-1704110400-abc123",         // 実行タスクID
+    text: "AI技術の最新動向について...",      // ツイート本文
+    authorId: "987654321",                    // 投稿者ID
+    authorName: "ai_researcher",              // 投稿者名
+    createdAt: "2024-01-01T10:30:00Z",       // ツイート投稿時刻
+    collectedAt: "2024-01-01T12:00:00Z",     // 収集時刻
+    data: { ... }                             // 完全なTwitterデータ
+}
 ```
-POST /api/lists/:listId/summarize     # 要約生成
-GET  /api/lists/:listId/summaries     # 要約履歴取得
-POST /api/cron/summarize-lists        # Cron用一括要約
+
+#### **cron_executions (実行ログ)**
+```javascript
+{
+    executionId: "exec-1704110400",
+    taskId: "task-1704110400-abc123",
+    taskType: "twitter_list",
+    startTime: "2024-01-01T12:00:00Z",
+    endTime: "2024-01-01T12:02:15Z",
+    status: "success",                        // success/error/partial
+    newItems: 12,                             // 新規取得ツイート数
+    processingTime: 135,                      // 処理時間（秒）
+    metadata: {
+        sourceId: "list-1704110400-def456",
+        totalFetched: 15,                     // API取得総数
+        duplicatesSkipped: 3                  // 重複スキップ数
+    }
+}
+```
+
+### 🔌 **API エンドポイント（最新版）**
+
+#### **Cronシステム**
+```
+POST /api/cron/universal-executor    # 汎用Cron実行エンジン（15分ごと自動実行）
+```
+
+#### **リスト管理（Firestore対応）**
+```
+POST /api/lists/register             # リスト登録（cron_tasks + twitter_lists作成）
+GET  /api/lists                     # リスト一覧取得（Firestore統合データ）
+DELETE /api/lists/:listId           # リスト削除（関連データ一括削除）
+PATCH /api/lists/:listId/toggle     # 有効/無効切り替え
+GET  /api/lists/stats               # 統計情報取得
+```
+
+#### **ツイート取得・管理**
+```
+GET  /api/lists/:listId/tweets       # 保存済みツイート取得（collected_tweets）
+POST /api/lists/:listId/fetch        # 手動ツイート取得
+```
+
+#### **監視・ログ**
+```
+GET  /api/cron/executions           # 実行履歴取得
+GET  /api/cron/tasks                # タスク一覧取得
 ```
 
 ### Vercel Cron Jobs設定
@@ -762,61 +881,149 @@ TWITTER_API_KEY=your-twitterapi-io-key
 OPENAI_API_KEY=your-openai-key
 ```
 
-### 重要な仕様・制限
 
-#### 頻度設定の扱い
-**⚠️ 重要**: 現在の実装では、UIで設定した個別の頻度（30分・1時間など）は**表示用のみ**です。
+### 🚀 **マイグレーション・運用ガイド**
 
-**実際の動作**:
-- **全アクティブリスト**がCronジョブの頻度（2時間ごと）で処理される
-- 個別リストの頻度設定は無視される
-- リストが「アクティブ」の場合、設定頻度に関係なく2時間ごとに取得
+#### **既存システムからの移行**
+1. **新規リスト**: 自動的にFirestoreシステムで動作
+2. **既存リスト**: 後方互換性を維持（段階的移行）
+3. **データ移行**: メモリからFirestoreへの自動変換
 
-**例**:
-```
-リストA: 30分ごと設定 → 実際は2時間ごと実行
-リストB: 6時間ごと設定 → 実際は2時間ごと実行
-リストC: 非アクティブ → 実行されない
-```
+#### **運用開始手順**
+1. **デプロイ**: Vercelに最新コードをプッシュ
+2. **確認**: List Schedulerで新規リスト登録テスト
+3. **監視**: 15分後にVercelログで実行確認
+4. **検証**: Firestoreコンソールでデータ確認
 
-#### データフロー
-```
-1. UI登録 → メモリ保存
-2. Cronジョブ → TwitterAPI.io → 新規ツイート取得
-3. 重複チェック → メモリ + Firestore保存
-4. 10件以上蓄積 → 自動要約 → データ削除
-```
+#### **監視・トラブルシューティング**
+- **実行ログ**: Vercel Functions → `/api/cron/universal-executor`
+- **データ確認**: Firebase Console → `cron_tasks`, `twitter_lists`
+- **エラー追跡**: `cron_executions`コレクションで詳細分析
 
-#### プラン制限
-- **Hobbyプラン**: 2個のCronジョブまで
-- **Proプラン**: 20個のCronジョブまで
+### ~~💡 解決策・改善案~~（**実装完了**）
 
-### 今後の改善案
+#### ~~推奨解決策: オプション1（Cron内で頻度チェック）~~（**実装済み**）
 
-#### 個別頻度対応の実装パターン
+**メリット**:
+- Hobbyプランでも実装可能（現在の2個のCronジョブ制限内）
+- 個別リストの頻度設定が正確に反映される
+- API使用量の最適化（不要な実行を回避）
 
-**パターン1: Cron内で頻度チェック**
+**実装例**:
 ```javascript
-// 各リストの次回実行時刻をチェック
-for (const list of activeLists) {
-    const now = new Date();
-    const lastUpdated = new Date(list.lastUpdated || 0);
-    const intervalMs = list.frequency * 60 * 1000;
+// /api/cron/fetch-list-tweets 内での改善
+app.post('/api/cron/fetch-list-tweets', async (req, res) => {
+    const activeLists = Array.from(registeredLists.values()).filter(list => list.active);
     
-    if (now - lastUpdated >= intervalMs) {
-        await fetchTweetsForList(list);
+    for (const list of activeLists) {
+        const now = new Date();
+        const lastUpdated = new Date(list.lastUpdated || 0);
+        const intervalMs = list.frequency * 60 * 1000; // 分を秒に変換
+        
+        // 設定頻度に達した場合のみ実行
+        if (now - lastUpdated >= intervalMs) {
+            await fetchTweetsForList(list);
+            list.lastUpdated = now.toISOString();
+        }
     }
-}
+});
 ```
 
-**パターン2: 頻度別Cronジョブ**
+#### 代替案: オプション2（頻度別Cronジョブ）
+
+**制限**:
+- **Hobbyプラン**: 2個制限のため実装困難
+- **Proプラン**: 40個制限内で部分的に可能
+
+**実装例（Proプラン）**:
 ```json
 {
   "crons": [
-    {"path": "/api/cron/fetch-30min", "schedule": "*/30 * * * *"},
-    {"path": "/api/cron/fetch-1hour", "schedule": "0 * * * *"},
-    {"path": "/api/cron/fetch-2hour", "schedule": "0 */2 * * *"}
+    {"path": "/api/cron/fetch-frequent", "schedule": "*/15 * * * *"},
+    {"path": "/api/cron/fetch-hourly", "schedule": "0 * * * *"},
+    {"path": "/api/cron/fetch-daily", "schedule": "0 0 * * *"}
   ]
+}
+```
+
+#### 頻度別使用量シミュレーション（Proプラン）
+
+| リスト数 | 設定頻度 | 月間実行回数 | 年間実行回数 | 使用率 |
+|----------|----------|--------------|--------------|--------|
+| 5リスト | 15分ごと | 14,400回 | 172,800回 | 1.44% |
+| 10リスト | 30分ごと | 14,400回 | 172,800回 | 1.44% |
+| 20リスト | 1時間ごと | 14,400回 | 172,800回 | 1.44% |
+
+**合計でも使用率4.32%**で、Proプランの制限内で十分運用可能。
+
+### 🗄️ **データベース永続化の問題**
+
+#### 現在のデータ保存状況
+
+| データ種類 | 保存場所 | 永続化 | 問題 |
+|------------|----------|--------|------|
+| **ツイートデータ** | Firebase Firestore | ✅ 永続化 | なし |
+| **リスト登録情報** | メモリ（Map） | ❌ 一時的 | サーバー再起動で消失 |
+| **lastUpdated** | メモリ（Map） | ❌ 一時的 | 頻度チェック不可 |
+| **tweetCount** | メモリ（Map） | ❌ 一時的 | 統計情報消失 |
+| **lastTweetId** | メモリ（Map） | ❌ 一時的 | 重複チェック不可 |
+
+#### Cronタスクでの処理
+
+```javascript
+// ✅ Firestoreに保存される
+await addDoc(collection(db, 'list-tweets'), {
+    listId: list.listId,
+    tweetId: tweet.id,
+    text: tweet.text,
+    // ... ツイートデータ
+});
+
+// ❌ メモリのみ（Firestoreに保存されない）
+list.lastUpdated = new Date().toISOString();
+list.tweetCount = newTweets.length;
+list.lastTweetId = newTweets[0].id;
+registeredLists.set(list.listId, list); // Map更新のみ
+```
+
+#### 使用されるFirestoreコレクション
+
+- **`list-tweets`**: 個別ツイートデータ（✅ 保存済み）
+- **`list-summaries`**: AI要約データ（✅ 保存済み）
+- **`realtime-tweets`**: リアルタイム監視データ（✅ 保存済み）
+- **`registered-lists`**: **❌ 未実装**（リスト登録情報）
+
+#### 問題の影響
+
+1. **サーバー再起動時**: 登録済みリストが全て消失
+2. **Vercel デプロイ時**: 新しいインスタンスでリスト情報なし
+3. **頻度チェック**: `lastUpdated`が復旧できずCron機能停止
+4. **重複チェック**: `lastTweetId`が復旧できず同じツイート再取得
+
+#### 必要な実装
+
+```javascript
+// 1. リスト情報をFirestoreに保存
+async function saveListToFirestore(list) {
+    await setDoc(doc(db, 'registered-lists', list.listId), {
+        listId: list.listId,
+        name: list.name,
+        frequency: list.frequency,
+        active: list.active,
+        lastUpdated: list.lastUpdated,
+        tweetCount: list.tweetCount,
+        lastTweetId: list.lastTweetId,
+        createdAt: list.createdAt
+    });
+}
+
+// 2. 起動時にFirestoreからリスト情報を復旧
+async function loadListsFromFirestore() {
+    const snapshot = await getDocs(collection(db, 'registered-lists'));
+    snapshot.forEach(doc => {
+        registeredLists.set(doc.id, doc.data());
+    });
+    console.log(`Loaded ${registeredLists.size} lists from Firestore`);
 }
 ```
 
@@ -826,6 +1033,9 @@ for (const list of activeLists) {
 1. **リスト登録失敗**: TwitterリストIDの確認・API KEY確認
 2. **Cronジョブ未実行**: 環境変数設定・プラン制限確認
 3. **要約失敗**: OpenAI API KEY確認・ツイート件数確認
+4. **リスト消失**: サーバー再起動/デプロイ時にリスト登録情報が失われる
+5. **重複ツイート**: `lastTweetId`復旧不可で同じツイートを再取得
+6. **統計情報リセット**: `tweetCount`がデプロイごとに0に戻る
 
 #### ログ確認方法
 - **ローカル**: コンソールログ

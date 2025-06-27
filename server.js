@@ -2242,7 +2242,7 @@ let listStats = {
     totalSummaries: 0
 };
 
-// リスト登録
+// リスト登録（Firestore対応版）
 app.post('/api/lists/register', async (req, res) => {
     try {
         const { listId, url, frequency, cronExpression, name, active } = req.body;
@@ -2254,7 +2254,7 @@ app.post('/api/lists/register', async (req, res) => {
         // TwitterAPI.ioでリストの存在確認
         try {
             const testResponse = await axios.get(`https://api.twitterapi.io/twitter/list/tweets`, {
-                params: { list_id: listId, count: 1 },
+                params: { listId: listId, count: 1 },
                 headers: { 'Authorization': `Bearer ${process.env.TWITTER_API_KEY}` }
             });
             
@@ -2262,42 +2262,137 @@ app.post('/api/lists/register', async (req, res) => {
                 return res.status(400).json({ error: 'TwitterリストIDが見つからないか、アクセスできません' });
             }
         } catch (error) {
+            console.error('Twitter list validation error:', error);
             return res.status(400).json({ error: 'TwitterリストIDの確認に失敗しました' });
         }
         
-        // リスト情報を保存
-        const listData = {
+        const now = new Date().toISOString();
+        const taskId = `task-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+        const twitterListId = `list-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+        
+        // 1. twitter_lists テーブルにリスト情報を保存
+        const twitterListData = {
+            listId: twitterListId,
+            twitterListId: listId, // Twitter APIのリストID
+            name,
+            url,
+            lastExecuted: null,
+            lastTweetId: null,
+            tweetCount: 0,
+            createdAt: now,
+            updatedAt: now
+        };
+        
+        await setDoc(doc(db, 'twitter_lists', twitterListId), twitterListData);
+        
+        // 2. cron_tasks テーブルにタスク情報を保存
+        const cronTaskData = {
+            taskId,
+            taskType: 'twitter_list',
+            name: `${name} - 定期取得`,
+            description: `${name}のツイートを${frequency}分ごとに取得`,
+            frequency, // 分単位
+            active: active !== false,
+            createdAt: now,
+            lastExecuted: null,
+            nextExecution: null,
+            executionCount: 0,
+            successCount: 0,
+            errorCount: 0,
+            lastError: null,
+            config: {
+                relatedTableId: twitterListId
+            }
+        };
+        
+        await setDoc(doc(db, 'cron_tasks', taskId), cronTaskData);
+        
+        // 後方互換性のため、メモリにも一時的に保存（将来削除予定）
+        const legacyListData = {
             listId,
             url,
             frequency,
             cronExpression,
             name,
             active: active !== false,
-            createdAt: new Date().toISOString(),
+            createdAt: now,
             lastUpdated: null,
             tweetCount: 0,
             lastTweetId: null
         };
-        
-        registeredLists.set(listId, listData);
+        registeredLists.set(listId, legacyListData);
         listTweets.set(listId, []);
         
-        // 統計更新
-        updateStats();
+        console.log(`✅ New list registered: ${name} (TwitterID: ${listId}, TaskID: ${taskId})`);
         
-        console.log(`New list registered: ${name} (${listId})`);
-        res.json({ success: true, listData });
+        res.json({ 
+            success: true, 
+            taskId,
+            twitterListId,
+            listData: cronTaskData,
+            message: 'リストが正常に登録されました'
+        });
         
     } catch (error) {
         console.error('List registration error:', error);
-        res.status(500).json({ error: 'リスト登録に失敗しました' });
+        res.status(500).json({ error: 'リスト登録に失敗しました: ' + error.message });
     }
 });
 
-// 登録済みリスト一覧
-app.get('/api/lists', (req, res) => {
-    const lists = Array.from(registeredLists.values());
-    res.json(lists);
+// 登録済みリスト一覧（Firestore対応版）
+app.get('/api/lists', async (req, res) => {
+    try {
+        // Firestoreからcron_tasksを取得
+        const tasksSnapshot = await getDocs(
+            query(collection(db, 'cron_tasks'), 
+                  where('taskType', '==', 'twitter_list'))
+        );
+        
+        const lists = [];
+        for (const taskDoc of tasksSnapshot.docs) {
+            const taskData = taskDoc.data();
+            
+            // 関連するtwitter_listsデータを取得
+            const twitterListDoc = await getDoc(doc(db, 'twitter_lists', taskData.config.relatedTableId));
+            if (twitterListDoc.exists()) {
+                const twitterListData = twitterListDoc.data();
+                
+                // レスポンス用にデータを結合
+                lists.push({
+                    taskId: taskData.taskId,
+                    listId: twitterListData.twitterListId, // TwitterのリストID
+                    name: taskData.name,
+                    frequency: taskData.frequency,
+                    active: taskData.active,
+                    createdAt: taskData.createdAt,
+                    lastUpdated: twitterListData.lastExecuted,
+                    tweetCount: twitterListData.tweetCount || 0,
+                    executionCount: taskData.executionCount || 0,
+                    successCount: taskData.successCount || 0,
+                    errorCount: taskData.errorCount || 0,
+                    lastError: taskData.lastError
+                });
+            }
+        }
+        
+        // 後方互換性のため、メモリからのデータも追加
+        const memoryLists = Array.from(registeredLists.values());
+        memoryLists.forEach(memoryList => {
+            // Firestoreデータと重複していないかチェック
+            const exists = lists.some(list => list.listId === memoryList.listId);
+            if (!exists) {
+                lists.push(memoryList);
+            }
+        });
+        
+        res.json(lists);
+        
+    } catch (error) {
+        console.error('Error fetching lists:', error);
+        // フォールバック：メモリからのデータを返す
+        const lists = Array.from(registeredLists.values());
+        res.json(lists);
+    }
 });
 
 // リスト削除
@@ -2418,8 +2513,11 @@ async function loadListTweetsFromFirestore(listId) {
     }
 }
 
-// Cron Job用のツイート取得エンドポイント
-app.post('/api/cron/fetch-list-tweets', async (req, res) => {
+// 汎用Cron実行エンドポイント
+app.post('/api/cron/universal-executor', async (req, res) => {
+    const executionId = `exec-${Date.now()}`;
+    const startTime = new Date();
+    
     try {
         // セキュリティチェック
         const authHeader = req.headers.authorization;
@@ -2427,95 +2525,249 @@ app.post('/api/cron/fetch-list-tweets', async (req, res) => {
             return res.status(401).json({ error: 'Unauthorized' });
         }
         
-        console.log('🔄 Starting scheduled tweet fetch for all active lists');
+        console.log(`🔄 [${executionId}] Starting universal cron executor`);
+        
+        // 実行対象タスクを取得
+        const tasksSnapshot = await getDocs(
+            query(collection(db, 'cron_tasks'), 
+                  where('active', '==', true))
+        );
+        
+        const allTasks = [];
+        tasksSnapshot.forEach(doc => {
+            allTasks.push({id: doc.id, ...doc.data()});
+        });
+        
+        console.log(`Found ${allTasks.length} active tasks`);
+        
+        // 頻度チェックで実行対象を決定
+        const now = new Date();
+        const tasksToExecute = allTasks.filter(task => {
+            if (!task.lastExecuted) return true;
+            
+            const lastExecuted = new Date(task.lastExecuted);
+            const minutesSince = (now - lastExecuted) / (1000 * 60);
+            return minutesSince >= task.frequency;
+        });
+        
+        console.log(`${tasksToExecute.length} tasks ready for execution`);
         
         const results = {
             success: true,
-            processedLists: 0,
-            totalTweets: 0,
-            lists: []
+            executionId,
+            startTime: startTime.toISOString(),
+            totalTasks: allTasks.length,
+            executedTasks: tasksToExecute.length,
+            results: []
         };
         
-        // アクティブなリストのみ処理
-        const activeLists = Array.from(registeredLists.values()).filter(list => list.active);
-        
-        for (const list of activeLists) {
+        // 各タスクを実行
+        for (const task of tasksToExecute) {
+            const taskStartTime = new Date();
             try {
-                console.log(`Fetching tweets for list: ${list.name} (${list.listId})`);
+                console.log(`Executing task: ${task.name} (${task.taskType})`);
                 
-                // TwitterAPI.ioからリストツイートを取得
-                const response = await axios.get(`https://api.twitterapi.io/twitter/list/tweets`, {
-                    params: { 
-                        list_id: list.listId,
-                        count: 20,
-                        // 前回取得した最新ツイートIDがある場合は、それより新しいものを取得
-                        since_id: list.lastTweetId || undefined
-                    },
-                    headers: { 'Authorization': `Bearer ${process.env.TWITTER_API_KEY}` }
-                });
-                
-                const tweets = response.data.data || [];
-                let newTweets = [];
-                
-                if (tweets.length > 0) {
-                    // 重複チェック
-                    const existingTweets = listTweets.get(list.listId) || [];
-                    const existingIds = new Set(existingTweets.map(t => t.id));
-                    
-                    newTweets = tweets.filter(tweet => !existingIds.has(tweet.id));
-                    
-                    if (newTweets.length > 0) {
-                        // メモリに保存
-                        const updatedTweets = [...newTweets, ...existingTweets];
-                        listTweets.set(list.listId, updatedTweets);
-                        
-                        // Firestoreに保存
-                        await saveListTweetsToFirestore(list.listId, newTweets);
-                        
-                        // リスト情報更新
-                        list.lastUpdated = new Date().toISOString();
-                        list.tweetCount = updatedTweets.length;
-                        list.lastTweetId = newTweets[0].id;
-                        registeredLists.set(list.listId, list);
-                        
-                        console.log(`Added ${newTweets.length} new tweets for ${list.name}`);
-                    }
+                let taskResult;
+                switch (task.taskType) {
+                    case 'twitter_list':
+                        taskResult = await executeTwitterListTask(task, now);
+                        break;
+                    default:
+                        throw new Error(`Unknown task type: ${task.taskType}`);
                 }
                 
-                results.processedLists++;
-                results.totalTweets += newTweets.length;
-                results.lists.push({
-                    listId: list.listId,
-                    name: list.name,
-                    newTweets: newTweets.length,
-                    totalTweets: list.tweetCount
+                // タスク実行成功
+                await updateDoc(doc(db, 'cron_tasks', task.id), {
+                    lastExecuted: now.toISOString(),
+                    nextExecution: new Date(now.getTime() + task.frequency * 60000).toISOString(),
+                    executionCount: (task.executionCount || 0) + 1,
+                    successCount: (task.successCount || 0) + 1,
+                    lastError: null
                 });
                 
-            } catch (listError) {
-                console.error(`Error processing list ${list.listId}:`, listError);
-                results.lists.push({
-                    listId: list.listId,
-                    name: list.name,
-                    error: listError.message,
-                    newTweets: 0
+                // 実行ログ記録
+                await addDoc(collection(db, 'cron_executions'), {
+                    executionId,
+                    taskId: task.taskId,
+                    taskType: task.taskType,
+                    startTime: taskStartTime.toISOString(),
+                    endTime: new Date().toISOString(),
+                    status: 'success',
+                    newItems: taskResult.newTweets || 0,
+                    processingTime: (new Date() - taskStartTime) / 1000,
+                    metadata: {
+                        sourceId: task.config?.relatedTableId,
+                        totalFetched: taskResult.totalFetched || 0,
+                        duplicatesSkipped: taskResult.duplicatesSkipped || 0
+                    }
+                });
+                
+                results.results.push({
+                    taskId: task.taskId,
+                    name: task.name,
+                    status: 'success',
+                    newItems: taskResult.newTweets || 0,
+                    processingTime: (new Date() - taskStartTime) / 1000
+                });
+                
+                console.log(`✅ Task completed: ${task.name} - ${taskResult.newTweets || 0} new items`);
+                
+            } catch (taskError) {
+                console.error(`❌ Task failed: ${task.name} - ${taskError.message}`);
+                
+                // タスクエラー記録
+                await updateDoc(doc(db, 'cron_tasks', task.id), {
+                    errorCount: (task.errorCount || 0) + 1,
+                    lastError: taskError.message
+                });
+                
+                // エラーログ記録
+                await addDoc(collection(db, 'cron_executions'), {
+                    executionId,
+                    taskId: task.taskId,
+                    taskType: task.taskType,
+                    startTime: taskStartTime.toISOString(),
+                    endTime: new Date().toISOString(),
+                    status: 'error',
+                    newItems: 0,
+                    processingTime: (new Date() - taskStartTime) / 1000,
+                    errors: [taskError.message]
+                });
+                
+                results.results.push({
+                    taskId: task.taskId,
+                    name: task.name,
+                    status: 'error',
+                    error: taskError.message,
+                    processingTime: (new Date() - taskStartTime) / 1000
                 });
             }
         }
         
-        // 統計更新
-        updateStats();
+        const endTime = new Date();
+        results.endTime = endTime.toISOString();
+        results.totalProcessingTime = (endTime - startTime) / 1000;
         
-        console.log(`✅ Cron job completed: ${results.processedLists} lists processed, ${results.totalTweets} new tweets`);
+        console.log(`✅ [${executionId}] Execution completed: ${results.executedTasks} tasks executed in ${results.totalProcessingTime}s`);
         res.json(results);
         
     } catch (error) {
-        console.error('Cron job error:', error);
+        console.error(`❌ [${executionId}] Execution failed:`, error);
         res.status(500).json({ 
             success: false,
-            error: error.message
+            executionId,
+            error: error.message,
+            startTime: startTime.toISOString(),
+            endTime: new Date().toISOString()
         });
     }
 });
+
+// Twitter List タスク実行関数
+async function executeTwitterListTask(task, executionTime) {
+    // リスト設定を取得
+    const listDoc = await getDoc(doc(db, 'twitter_lists', task.config.relatedTableId));
+    if (!listDoc.exists()) {
+        throw new Error(`Twitter list not found: ${task.config.relatedTableId}`);
+    }
+    
+    const listData = listDoc.data();
+    
+    // 前回実行時刻の3分前から取得（マージン）
+    const lastExecuted = listData.lastExecuted ? new Date(listData.lastExecuted) : new Date(0);
+    const marginTime = new Date(lastExecuted.getTime() - 3 * 60 * 1000); // 3分前
+    const currentTime = executionTime;
+    
+    const params = {
+        listId: listData.twitterListId,
+        sinceTime: Math.floor(marginTime.getTime() / 1000), // Unix timestamp(秒)
+        untilTime: Math.floor(currentTime.getTime() / 1000)
+    };
+    
+    console.log(`Fetching tweets from ${marginTime.toISOString()} to ${currentTime.toISOString()}`);
+    
+    // TwitterAPI.io呼び出し
+    const response = await axios.get('https://api.twitterapi.io/twitter/list/tweets', {
+        params,
+        headers: { 'Authorization': `Bearer ${process.env.TWITTER_API_KEY}` }
+    });
+    
+    const tweets = response.data.data || [];
+    console.log(`API returned ${tweets.length} tweets`);
+    
+    // 前回の最新ツイートID以降のみフィルタ（重複防止）
+    const newTweets = tweets.filter(tweet => {
+        // 前回の最新ツイートIDより新しいもののみ
+        if (listData.lastTweetId && tweet.id <= listData.lastTweetId) {
+            return false;
+        }
+        
+        // 念のため時間でもフィルタ
+        const tweetTime = new Date(tweet.created_at);
+        return tweetTime > lastExecuted;
+    });
+    
+    console.log(`Filtered to ${newTweets.length} new tweets`);
+    
+    // DB重複チェック（念のため）
+    const uniqueTweets = [];
+    for (const tweet of newTweets) {
+        const existingDoc = await getDocs(
+            query(collection(db, 'collected_tweets'), 
+                  where('tweetId', '==', tweet.id),
+                  where('sourceId', '==', listData.listId))
+        );
+        
+        if (existingDoc.empty) {
+            uniqueTweets.push(tweet);
+        } else {
+            console.log(`Skipping duplicate tweet: ${tweet.id}`);
+        }
+    }
+    
+    console.log(`Final unique tweets: ${uniqueTweets.length}`);
+    
+    // 新しいツイートを保存
+    for (const tweet of uniqueTweets) {
+        await addDoc(collection(db, 'collected_tweets'), {
+            tweetId: tweet.id,
+            sourceType: 'twitter_list',
+            sourceId: listData.listId,
+            taskId: task.taskId,
+            text: tweet.text,
+            authorId: tweet.author_id,
+            authorName: tweet.author?.username || 'unknown',
+            createdAt: tweet.created_at,
+            collectedAt: executionTime.toISOString(),
+            data: tweet
+        });
+    }
+    
+    // メタデータ更新
+    const updateData = {
+        lastExecuted: executionTime.toISOString(),
+        tweetCount: (listData.tweetCount || 0) + uniqueTweets.length,
+        updatedAt: executionTime.toISOString()
+    };
+    
+    // 最新ツイートIDを更新
+    if (uniqueTweets.length > 0) {
+        // ツイートIDでソート（降順）して最新を取得
+        const sortedTweets = uniqueTweets.sort((a, b) => b.id.localeCompare(a.id));
+        updateData.lastTweetId = sortedTweets[0].id;
+    }
+    
+    await updateDoc(doc(db, 'twitter_lists', listData.listId), updateData);
+    
+    console.log(`List "${listData.name}": ${uniqueTweets.length} new tweets collected`);
+    
+    return { 
+        newTweets: uniqueTweets.length,
+        totalFetched: tweets.length,
+        duplicatesSkipped: newTweets.length - uniqueTweets.length,
+        alreadyInDB: tweets.length - newTweets.length
+    };
+}
 
 // 手動でリストツイート取得（テスト用）
 app.post('/api/lists/:listId/fetch', async (req, res) => {

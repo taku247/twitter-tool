@@ -32,7 +32,9 @@
       "Bash(grep:*)",
       "Bash(rg:*)",
       "Bash(curl:*)",
-      "Bash(git fetch:*)"
+      "Bash(git fetch:*)",
+      "WebFetch(domain:docs.x.ai)",
+      "WebFetch(domain:vercel.com)"
     ],
     "deny": []
   }
