@@ -49,20 +49,19 @@
         
         .nav-links {
             display: flex;
-            gap: 1rem;
+            gap: 2rem;
+            list-style: none;
         }
         
         .nav-link {
-            color: rgba(255, 255, 255, 0.8);
+            color: rgba(255, 255, 255, 0.7);
             text-decoration: none;
-            padding: 0.5rem 1rem;
-            border-radius: 0.5rem;
-            transition: all 0.3s ease;
+            font-weight: 500;
+            transition: color 0.3s ease;
         }
         
         .nav-link:hover {
-            background: rgba(255, 255, 255, 0.1);
-            color: #ffffff;
+            color: #00d4ff;
         }
         
         .container {
@@ -711,12 +710,15 @@
 <body>
     <header class="header">
         <nav class="nav">
-            <div class="logo">🐦 Twitter リアルタイム監視</div>
-            <div class="nav-links">
-                <a href="index.html" class="nav-link">メインダッシュボード</a>
-                <a href="user-tracker.html" class="nav-link">ユーザー追跡</a>
-                <a href="kaitotweet.html" class="nav-link">暗号通貨</a>
-            </div>
+            <div class="logo">Twitter Analytics</div>
+            <ul class="nav-links">
+                <li><a href="/" class="nav-link">Dashboard</a></li>
+                <li><a href="/kaitotweet.html" class="nav-link">KaitoTweet</a></li>
+                <li><a href="/user-tracker.html" class="nav-link">User Tracker</a></li>
+                <li><a href="/list-scheduler.html" class="nav-link">📋 List Scheduler</a></li>
+                <li><a href="/realtime-monitor.html" class="nav-link">📡 リアルタイム監視</a></li>
+                <li><a href="/test.html" class="nav-link">API Test</a></li>
+            </ul>
         </nav>
     </header>
 

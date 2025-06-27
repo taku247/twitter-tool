@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Twitter List Scheduler - Twitter Analytics Tool</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            text-align: center;
+            color: white;
+            margin-bottom: 30px;
+            font-size: 2.5rem;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .main-content {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            margin-bottom: 30px;
+        }
+
+        .card {
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+
+        .card h2 {
+            color: #333;
+            margin-bottom: 20px;
+            font-size: 1.5rem;
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 10px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 600;
+            color: #555;
+        }
+
+        input[type="text"], select {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-size: 16px;
+            transition: border-color 0.3s;
+        }
+
+        input[type="text"]:focus, select:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .btn {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 600;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        }
+
+        .btn-danger {
+            background: linear-gradient(45deg, #ff6b6b, #ee5a52);
+        }
+
+        .status {
+            padding: 10px;
+            border-radius: 5px;
+            margin-top: 10px;
+            font-weight: 600;
+        }
+
+        .status.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .list-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            background: #f8f9fa;
+        }
+
+        .list-info {
+            flex: 1;
+        }
+
+        .list-info h4 {
+            margin-bottom: 5px;
+            color: #333;
+        }
+
+        .list-info small {
+            color: #666;
+        }
+
+        .list-actions {
+            display: flex;
+            gap: 10px;
+        }
+
+        .btn-small {
+            padding: 6px 12px;
+            font-size: 14px;
+        }
+
+        .schedule-info {
+            background: #e9ecef;
+            padding: 10px;
+            border-radius: 5px;
+            margin-top: 10px;
+        }
+
+        .tweet-count {
+            font-weight: bold;
+            color: #667eea;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: #666;
+        }
+
+        @media (max-width: 768px) {
+            .main-content {
+                grid-template-columns: 1fr;
+            }
+            
+            h1 {
+                font-size: 2rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📋 Twitter List Scheduler</h1>
+        
+        <div class="main-content">
+            <!-- 新規リスト登録 -->
+            <div class="card">
+                <h2>📝 新規リスト登録</h2>
+                <form id="listForm">
+                    <div class="form-group">
+                        <label for="listUrl">Twitter リスト URL</label>
+                        <input type="text" id="listUrl" placeholder="https://twitter.com/i/lists/123456789" required>
+                        <small style="color: #666;">例: https://twitter.com/i/lists/123456789</small>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="frequency">取得頻度</label>
+                        <select id="frequency" required>
+                            <option value="">選択してください</option>
+                            <option value="30">30分ごと</option>
+                            <option value="60">1時間ごと</option>
+                            <option value="120">2時間ごと</option>
+                            <option value="360">6時間ごと</option>
+                            <option value="720">12時間ごと</option>
+                            <option value="1440">24時間ごと</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="listName">リスト名（任意）</label>
+                        <input type="text" id="listName" placeholder="AI関連の人たち">
+                    </div>
+                    
+                    <button type="submit" class="btn">📋 リストを登録</button>
+                </form>
+                
+                <div id="registerStatus" class="status" style="display: none;"></div>
+            </div>
+            
+            <!-- 登録済みリスト一覧 -->
+            <div class="card">
+                <h2>📊 登録済みリスト</h2>
+                <div id="listContainer">
+                    <div class="loading">読み込み中...</div>
+                </div>
+                <button onclick="loadLists()" class="btn btn-small" style="margin-top: 15px;">🔄 更新</button>
+            </div>
+        </div>
+        
+        <!-- 統計情報 -->
+        <div class="card">
+            <h2>📈 統計情報</h2>
+            <div id="statsContainer">
+                <div class="loading">読み込み中...</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // TwitterリストURLからリストIDを抽出
+        function extractListId(url) {
+            const match = url.match(/lists\/(\d+)/);
+            return match ? match[1] : null;
+        }
+
+        // Cron式を生成
+        function generateCronExpression(minutes) {
+            if (minutes < 60) {
+                return `*/${minutes} * * * *`;
+            } else {
+                const hours = Math.floor(minutes / 60);
+                return `0 */${hours} * * *`;
+            }
+        }
+
+        // 頻度を人間が読みやすい形式に変換
+        function formatFrequency(minutes) {
+            if (minutes < 60) {
+                return `${minutes}分ごと`;
+            } else if (minutes < 1440) {
+                return `${minutes/60}時間ごと`;
+            } else {
+                return `${minutes/1440}日ごと`;
+            }
+        }
+
+        // リスト登録フォーム
+        document.getElementById('listForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const url = document.getElementById('listUrl').value;
+            const frequency = parseInt(document.getElementById('frequency').value);
+            const name = document.getElementById('listName').value;
+            
+            const listId = extractListId(url);
+            if (!listId) {
+                showStatus('registerStatus', 'TwitterリストのURLが正しくありません', 'error');
+                return;
+            }
+            
+            const cronExpression = generateCronExpression(frequency);
+            
+            try {
+                const response = await fetch('/api/lists/register', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        listId,
+                        url,
+                        frequency,
+                        cronExpression,
+                        name: name || `List ${listId}`,
+                        active: true
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok) {
+                    showStatus('registerStatus', 'リストが正常に登録されました！', 'success');
+                    document.getElementById('listForm').reset();
+                    loadLists();
+                } else {
+                    showStatus('registerStatus', result.error || '登録に失敗しました', 'error');
+                }
+            } catch (error) {
+                showStatus('registerStatus', 'エラーが発生しました: ' + error.message, 'error');
+            }
+        });
+
+        // ステータス表示
+        function showStatus(elementId, message, type) {
+            const element = document.getElementById(elementId);
+            element.textContent = message;
+            element.className = `status ${type}`;
+            element.style.display = 'block';
+            
+            setTimeout(() => {
+                element.style.display = 'none';
+            }, 5000);
+        }
+
+        // 登録済みリスト読み込み
+        async function loadLists() {
+            const container = document.getElementById('listContainer');
+            container.innerHTML = '<div class="loading">読み込み中...</div>';
+            
+            try {
+                const response = await fetch('/api/lists');
+                const lists = await response.json();
+                
+                if (lists.length === 0) {
+                    container.innerHTML = '<p>登録されているリストはありません</p>';
+                    return;
+                }
+                
+                container.innerHTML = lists.map(list => `
+                    <div class="list-item">
+                        <div class="list-info">
+                            <h4>${list.name}</h4>
+                            <small>ID: ${list.listId} | ${formatFrequency(list.frequency)}</small>
+                            <div class="schedule-info">
+                                <span class="tweet-count">${list.tweetCount || 0}</span> ツイート保存済み
+                                <br>最終更新: ${list.lastUpdated ? new Date(list.lastUpdated).toLocaleString('ja-JP') : '未実行'}
+                            </div>
+                        </div>
+                        <div class="list-actions">
+                            <button onclick="toggleList('${list.listId}', ${!list.active})" 
+                                    class="btn btn-small ${list.active ? 'btn-danger' : ''}">
+                                ${list.active ? '⏸️ 停止' : '▶️ 開始'}
+                            </button>
+                            <button onclick="deleteList('${list.listId}')" class="btn btn-danger btn-small">
+                                🗑️ 削除
+                            </button>
+                        </div>
+                    </div>
+                `).join('');
+                
+            } catch (error) {
+                container.innerHTML = '<p>リストの読み込みに失敗しました</p>';
+            }
+        }
+
+        // リストの有効/無効切り替え
+        async function toggleList(listId, active) {
+            try {
+                const response = await fetch(`/api/lists/${listId}/toggle`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ active })
+                });
+                
+                if (response.ok) {
+                    loadLists();
+                } else {
+                    alert('操作に失敗しました');
+                }
+            } catch (error) {
+                alert('エラーが発生しました: ' + error.message);
+            }
+        }
+
+        // リスト削除
+        async function deleteList(listId) {
+            if (!confirm('このリストを削除しますか？保存されたツイートも削除されます。')) {
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/api/lists/${listId}`, {
+                    method: 'DELETE'
+                });
+                
+                if (response.ok) {
+                    loadLists();
+                    loadStats();
+                } else {
+                    alert('削除に失敗しました');
+                }
+            } catch (error) {
+                alert('エラーが発生しました: ' + error.message);
+            }
+        }
+
+        // 統計情報読み込み
+        async function loadStats() {
+            const container = document.getElementById('statsContainer');
+            
+            try {
+                const response = await fetch('/api/lists/stats');
+                const stats = await response.json();
+                
+                container.innerHTML = `
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px;">
+                        <div style="text-align: center; padding: 15px; background: #f8f9fa; border-radius: 8px;">
+                            <h3 style="color: #667eea; margin-bottom: 5px;">${stats.totalLists || 0}</h3>
+                            <p>登録リスト数</p>
+                        </div>
+                        <div style="text-align: center; padding: 15px; background: #f8f9fa; border-radius: 8px;">
+                            <h3 style="color: #28a745; margin-bottom: 5px;">${stats.activeLists || 0}</h3>
+                            <p>アクティブリスト</p>
+                        </div>
+                        <div style="text-align: center; padding: 15px; background: #f8f9fa; border-radius: 8px;">
+                            <h3 style="color: #fd7e14; margin-bottom: 5px;">${stats.totalTweets || 0}</h3>
+                            <p>保存ツイート数</p>
+                        </div>
+                        <div style="text-align: center; padding: 15px; background: #f8f9fa; border-radius: 8px;">
+                            <h3 style="color: #6f42c1; margin-bottom: 5px;">${stats.totalSummaries || 0}</h3>
+                            <p>生成済み要約</p>
+                        </div>
+                    </div>
+                `;
+            } catch (error) {
+                container.innerHTML = '<p>統計情報の読み込みに失敗しました</p>';
+            }
+        }
+
+        // 初期化
+        document.addEventListener('DOMContentLoaded', () => {
+            loadLists();
+            loadStats();
+        });
+    </script>
+</body>
+</html>
