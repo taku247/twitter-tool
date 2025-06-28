@@ -2723,6 +2723,17 @@ async function executeTwitterListTask(task, executionTime) {
             created_time: tweets[0].created_time,
             time: tweets[0].time
         });
+        console.log(`🔍 Available author fields:`, {
+            author_id: tweets[0].author_id,
+            authorId: tweets[0].authorId,
+            'user.id': tweets[0].user?.id,
+            'user.id_str': tweets[0].user?.id_str,
+            'author.id': tweets[0].author?.id,
+            'author.username': tweets[0].author?.username,
+            'author.screen_name': tweets[0].author?.screen_name,
+            'user.screen_name': tweets[0].user?.screen_name,
+            'user.username': tweets[0].user?.username
+        });
     }
     
     console.log(`🔍 Filter conditions:`, {
@@ -2784,18 +2795,23 @@ async function executeTwitterListTask(task, executionTime) {
     // 新しいツイートを保存
     for (const tweet of uniqueTweets) {
         const dateValue = tweet.created_at || tweet.createdAt || tweet.date || tweet.timestamp || tweet.created_time || tweet.time;
+        const authorId = tweet.author_id || tweet.authorId || tweet.user?.id || tweet.user?.id_str || tweet.author?.id || 'unknown';
+        const authorName = tweet.author?.username || tweet.author?.screen_name || tweet.user?.screen_name || tweet.user?.username || 'unknown';
+        
         await addDoc(collection(db, 'collected_tweets'), {
             tweetId: tweet.id,
             sourceType: 'twitter_list',
             sourceId: listData.listId,
             taskId: task.taskId,
             text: tweet.text,
-            authorId: tweet.author_id,
-            authorName: tweet.author?.username || 'unknown',
+            authorId: authorId,
+            authorName: authorName,
             createdAt: dateValue,
             collectedAt: executionTime.toISOString(),
             data: tweet
         });
+        
+        console.log(`💾 Saved tweet ${tweet.id} by ${authorName} (${authorId})`);
     }
     
     // メタデータ更新
