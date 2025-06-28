@@ -2552,11 +2552,25 @@ const cronExecutor = async (req, res) => {
         // 頻度チェックで実行対象を決定
         const now = new Date();
         const tasksToExecute = allTasks.filter(task => {
-            if (!task.lastExecuted) return true;
+            console.log(`🔍 Task check: ${task.name}`);
+            console.log(`  - lastExecuted: ${task.lastExecuted}`);
+            console.log(`  - frequency: ${task.frequency} minutes`);
+            console.log(`  - current time: ${now.toISOString()}`);
+            
+            if (!task.lastExecuted) {
+                console.log(`  ✅ First execution (no lastExecuted)`);
+                return true;
+            }
             
             const lastExecuted = new Date(task.lastExecuted);
             const minutesSince = (now - lastExecuted) / (1000 * 60);
-            return minutesSince >= task.frequency;
+            const shouldExecute = minutesSince >= task.frequency;
+            
+            console.log(`  - last executed: ${lastExecuted.toISOString()}`);
+            console.log(`  - minutes since: ${minutesSince.toFixed(2)}`);
+            console.log(`  - should execute: ${shouldExecute ? 'YES' : 'NO'}`);
+            
+            return shouldExecute;
         });
         
         console.log(`${tasksToExecute.length} tasks ready for execution`);
