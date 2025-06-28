@@ -2714,15 +2714,14 @@ async function executeTwitterListTask(task, executionTime) {
     
     // デバッグ用：最初の数件のツイート情報をログ出力
     if (tweets.length > 0) {
-        console.log(`🔍 First tweet sample:`, {
-            id: tweets[0].id,
+        console.log(`🔍 First tweet full structure:`, JSON.stringify(tweets[0], null, 2));
+        console.log(`🔍 Available date fields:`, {
             created_at: tweets[0].created_at,
-            text: tweets[0].text?.substring(0, 50) + '...'
-        });
-        console.log(`🔍 Last tweet sample:`, {
-            id: tweets[tweets.length - 1].id,
-            created_at: tweets[tweets.length - 1].created_at,
-            text: tweets[tweets.length - 1].text?.substring(0, 50) + '...'
+            createdAt: tweets[0].createdAt,
+            date: tweets[0].date,
+            timestamp: tweets[0].timestamp,
+            created_time: tweets[0].created_time,
+            time: tweets[0].time
         });
     }
     
@@ -2741,7 +2740,18 @@ async function executeTwitterListTask(task, executionTime) {
         }
         
         // 念のため時間でもフィルタ
-        const tweetTime = new Date(tweet.created_at);
+        const dateValue = tweet.created_at || tweet.createdAt || tweet.date || tweet.timestamp || tweet.created_time || tweet.time;
+        if (!dateValue) {
+            console.log(`🚫 Tweet ${tweet.id} filtered out: no valid date field found`);
+            return false;
+        }
+        
+        const tweetTime = new Date(dateValue);
+        if (isNaN(tweetTime.getTime())) {
+            console.log(`🚫 Tweet ${tweet.id} filtered out: invalid date value "${dateValue}"`);
+            return false;
+        }
+        
         if (!(tweetTime > lastExecuted)) {
             console.log(`🚫 Tweet ${tweet.id} filtered out: time ${tweetTime.toISOString()} <= lastExecuted ${lastExecuted.toISOString()}`);
             return false;
@@ -2773,6 +2783,7 @@ async function executeTwitterListTask(task, executionTime) {
     
     // 新しいツイートを保存
     for (const tweet of uniqueTweets) {
+        const dateValue = tweet.created_at || tweet.createdAt || tweet.date || tweet.timestamp || tweet.created_time || tweet.time;
         await addDoc(collection(db, 'collected_tweets'), {
             tweetId: tweet.id,
             sourceType: 'twitter_list',
@@ -2781,7 +2792,7 @@ async function executeTwitterListTask(task, executionTime) {
             text: tweet.text,
             authorId: tweet.author_id,
             authorName: tweet.author?.username || 'unknown',
-            createdAt: tweet.created_at,
+            createdAt: dateValue,
             collectedAt: executionTime.toISOString(),
             data: tweet
         });
