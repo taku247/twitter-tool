@@ -2696,7 +2696,9 @@ async function executeTwitterListTask(task, executionTime) {
         untilTime: Math.floor(currentTime.getTime() / 1000)
     };
     
-    console.log(`Fetching tweets from ${marginTime.toISOString()} to ${currentTime.toISOString()}`);
+    console.log(`📋 List ID: ${listData.twitterListId}`);
+    console.log(`⏰ Fetching tweets from ${marginTime.toISOString()} to ${currentTime.toISOString()}`);
+    console.log(`🔗 API params:`, JSON.stringify(params));
     
     // TwitterAPI.io呼び出し
     const response = await axios.get('https://api.twitterapi.io/twitter/list/tweets', {
@@ -2704,8 +2706,11 @@ async function executeTwitterListTask(task, executionTime) {
         headers: { 'X-API-Key': process.env.TWITTER_API_KEY }
     });
     
-    const tweets = response.data.data || [];
-    console.log(`API returned ${tweets.length} tweets`);
+    console.log(`📊 API response status: ${response.status}`);
+    console.log(`📊 API response data structure:`, Object.keys(response.data));
+    
+    const tweets = response.data.data || response.data.tweets || [];
+    console.log(`📨 API returned ${tweets.length} tweets`);
     
     // 前回の最新ツイートID以降のみフィルタ（重複防止）
     const newTweets = tweets.filter(tweet => {
