@@ -34,7 +34,9 @@
       "Bash(curl:*)",
       "Bash(git fetch:*)",
       "WebFetch(domain:docs.x.ai)",
-      "WebFetch(domain:vercel.com)"
+      "WebFetch(domain:vercel.com)",
+      "Bash(-H \"Content-Type: application/json\" )",
+      "Bash(-d '{}')"
     ],
     "deny": []
   }

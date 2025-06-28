@@ -2519,6 +2519,15 @@ app.post('/api/cron/universal-executor', async (req, res) => {
     const startTime = new Date();
     
     try {
+        // Preview環境でのCron実行を防ぐ
+        if (process.env.VERCEL_ENV !== 'production') {
+            console.log(`🚫 [${executionId}] Cron execution blocked in ${process.env.VERCEL_ENV} environment`);
+            return res.status(200).json({ 
+                message: 'Cron jobs are disabled in non-production environments',
+                environment: process.env.VERCEL_ENV 
+            });
+        }
+        
         // セキュリティチェック
         const authHeader = req.headers.authorization;
         if (!authHeader || authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
