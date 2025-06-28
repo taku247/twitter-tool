@@ -2712,19 +2712,46 @@ async function executeTwitterListTask(task, executionTime) {
     const tweets = response.data.data || response.data.tweets || [];
     console.log(`📨 API returned ${tweets.length} tweets`);
     
+    // デバッグ用：最初の数件のツイート情報をログ出力
+    if (tweets.length > 0) {
+        console.log(`🔍 First tweet sample:`, {
+            id: tweets[0].id,
+            created_at: tweets[0].created_at,
+            text: tweets[0].text?.substring(0, 50) + '...'
+        });
+        console.log(`🔍 Last tweet sample:`, {
+            id: tweets[tweets.length - 1].id,
+            created_at: tweets[tweets.length - 1].created_at,
+            text: tweets[tweets.length - 1].text?.substring(0, 50) + '...'
+        });
+    }
+    
+    console.log(`🔍 Filter conditions:`, {
+        lastTweetId: listData.lastTweetId,
+        lastExecuted: lastExecuted.toISOString(),
+        marginTime: marginTime.toISOString()
+    });
+    
     // 前回の最新ツイートID以降のみフィルタ（重複防止）
     const newTweets = tweets.filter(tweet => {
         // 前回の最新ツイートIDより新しいもののみ
         if (listData.lastTweetId && tweet.id <= listData.lastTweetId) {
+            console.log(`🚫 Tweet ${tweet.id} filtered out: older than lastTweetId ${listData.lastTweetId}`);
             return false;
         }
         
         // 念のため時間でもフィルタ
         const tweetTime = new Date(tweet.created_at);
-        return tweetTime > lastExecuted;
+        if (!(tweetTime > lastExecuted)) {
+            console.log(`🚫 Tweet ${tweet.id} filtered out: time ${tweetTime.toISOString()} <= lastExecuted ${lastExecuted.toISOString()}`);
+            return false;
+        }
+        
+        console.log(`✅ Tweet ${tweet.id} passed filters: time ${tweetTime.toISOString()}`);
+        return true;
     });
     
-    console.log(`Filtered to ${newTweets.length} new tweets`);
+    console.log(`📊 Filter results: ${tweets.length} → ${newTweets.length} tweets`);
     
     // DB重複チェック（念のため）
     const uniqueTweets = [];
