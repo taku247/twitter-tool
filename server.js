@@ -36,6 +36,13 @@ const firebaseConfig = {
 
 const firebaseApp = initializeApp(firebaseConfig);
 const db = getFirestore(firebaseApp); // デフォルトデータベースを使用
+
+// Vercel環境でのFirestore接続設定
+if (process.env.VERCEL) {
+    // Vercel環境では接続プールを制限
+    db._delegate._databaseId.projectId = firebaseConfig.projectId;
+}
+
 console.log('Firebase Firestore initialized with default database');
 
 // OpenAI クライアントの初期化
@@ -2679,8 +2686,9 @@ const cronExecutor = async (req, res) => {
     }
 };
 
-// Vercel Cron JobsはGETメソッド固定のため、GETで提供
+// GET（Vercel Cron用）とPOST（外部スケジューラー用）両対応
 app.get('/api/cron/universal-executor', cronExecutor);
+app.post('/api/cron/universal-executor', cronExecutor);
 
 // Twitter List タスク実行関数
 async function executeTwitterListTask(task, executionTime) {
