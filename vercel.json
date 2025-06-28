@@ -1,11 +1,6 @@
 {
   "version": 2,
-  "crons": [
-    {
-      "path": "/api/cron/universal-executor",
-      "schedule": "*/15 * * * *"
-    }
-  ],
+  "crons": [],
   "builds": [
     {
       "src": "server.js",
