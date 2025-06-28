@@ -1341,11 +1341,12 @@
             return baseQuery + ' ' + allFilters.join(' ');
         }
         
-        // 日時をTwitter検索形式に変換（日本時間→UTC変換）
+        // 日時をTwitter検索形式に変換（ブラウザ時間→UTC変換）
         function formatDateForTwitter(datetimeLocal) {
+            // datetime-localは既にローカル時間として解釈される
             const localDate = new Date(datetimeLocal);
-            // 日本時間（JST）をUTCに変換（-9時間）
-            const utcDate = new Date(localDate.getTime() - (9 * 60 * 60 * 1000));
+            // UTCとして取得（ブラウザが自動的にタイムゾーンを処理）
+            const utcDate = new Date(localDate.toISOString());
             
             const year = utcDate.getFullYear();
             const month = String(utcDate.getMonth() + 1).padStart(2, '0');
@@ -1466,16 +1467,18 @@
                     return dateString;
                 }
                 
-                // 日本時間に変換してフォーマット
-                const jstDate = new Date(date.getTime() + (9 * 60 * 60 * 1000)); // UTC+9
+                // 日本時間に変換してフォーマット（正しいタイムゾーン処理）
+                const jstString = date.toLocaleString('ja-JP', {
+                    timeZone: 'Asia/Tokyo',
+                    year: 'numeric',
+                    month: '2-digit',
+                    day: '2-digit',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    hour12: false
+                });
                 
-                const year = jstDate.getUTCFullYear();
-                const month = String(jstDate.getUTCMonth() + 1).padStart(2, '0');
-                const day = String(jstDate.getUTCDate()).padStart(2, '0');
-                const hours = String(jstDate.getUTCHours()).padStart(2, '0');
-                const minutes = String(jstDate.getUTCMinutes()).padStart(2, '0');
-                
-                return `${year}/${month}/${day} ${hours}:${minutes} JST`;
+                return jstString.replace(/\//g, '/').replace(',', '') + ' JST';
             } catch (error) {
                 console.error('Date formatting error:', error, dateString);
                 return dateString;

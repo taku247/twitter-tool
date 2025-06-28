@@ -41,7 +41,8 @@
       "Bash(-H \"Content-Type: application/json\" )",
       "Bash(vercel login:*)",
       "Bash(vercel:*)",
-      "Bash(node:*)"
+      "Bash(node:*)",
+      "Bash(echo $TZ)"
     ],
     "deny": []
   }

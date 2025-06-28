@@ -38,6 +38,14 @@ const firebaseApp = initializeApp(firebaseConfig);
 const db = getFirestore(firebaseApp); // デフォルトデータベースを使用
 console.log('Firebase Firestore initialized with default database');
 
+// タイムゾーン設定確認
+console.log('🕐 Server timezone info:', {
+    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+    offset: new Date().getTimezoneOffset(),
+    currentTime: new Date().toISOString(),
+    environment: process.env.VERCEL_ENV || 'local'
+});
+
 // OpenAI クライアントの初期化
 let openai = null;
 if (process.env.OPENAI_API_KEY) {
