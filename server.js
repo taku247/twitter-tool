@@ -35,7 +35,7 @@ const firebaseConfig = {
 };
 
 const firebaseApp = initializeApp(firebaseConfig);
-const db = getFirestore(firebaseApp, 'twitter-tool'); // 名前付きデータベースを使用
+const db = getFirestore(firebaseApp); // デフォルトデータベースを使用
 console.log('Firebase Firestore initialized with named database: twitter-tool');
 
 // OpenAI クライアントの初期化
