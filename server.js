@@ -2686,8 +2686,28 @@ const cronExecutor = async (req, res) => {
     }
 };
 
-// GET（Vercel Cron用）とPOST（外部スケジューラー用）両対応
-app.get('/api/cron/universal-executor', cronExecutor);
+// GET（Vercel Cron用）→POST変換エンドポイント
+app.get('/api/cron/universal-executor', async (req, res) => {
+    // GETリクエストをPOSTに変換して内部呼び出し
+    try {
+        const mockReq = {
+            ...req,
+            method: 'POST',
+            headers: {
+                ...req.headers,
+                'content-type': 'application/json'
+            },
+            body: {}
+        };
+        
+        await cronExecutor(mockReq, res);
+    } catch (error) {
+        console.error('GET→POST conversion error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// POST（直接実行用）
 app.post('/api/cron/universal-executor', cronExecutor);
 
 // Twitter List タスク実行関数
