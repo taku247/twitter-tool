@@ -36,13 +36,6 @@ const firebaseConfig = {
 
 const firebaseApp = initializeApp(firebaseConfig);
 const db = getFirestore(firebaseApp); // デフォルトデータベースを使用
-
-// Vercel環境でのFirestore接続設定
-if (process.env.VERCEL) {
-    // Vercel環境では接続プールを制限
-    db._delegate._databaseId.projectId = firebaseConfig.projectId;
-}
-
 console.log('Firebase Firestore initialized with default database');
 
 // OpenAI クライアントの初期化
