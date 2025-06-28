@@ -2672,8 +2672,7 @@ const cronExecutor = async (req, res) => {
     }
 };
 
-// GET/POST両方でcronエンドポイントを提供
-app.get('/api/cron/universal-executor', cronExecutor);
+// POSTメソッドでcronエンドポイントを提供
 app.post('/api/cron/universal-executor', cronExecutor);
 
 // Twitter List タスク実行関数
