@@ -6,7 +6,7 @@ const { OpenAI } = require('openai');
 const WebSocket = require('ws');
 const http = require('http');
 const { initializeApp } = require('firebase/app');
-const { getFirestore, collection, addDoc, query, orderBy, limit, getDocs, deleteDoc, doc, where, writeBatch, setDoc } = require('firebase/firestore');
+const { getFirestore, collection, addDoc, query, orderBy, limit, getDocs, deleteDoc, doc, where, writeBatch, setDoc, getDoc } = require('firebase/firestore');
 require('dotenv').config();
 
 const app = express();
@@ -36,7 +36,7 @@ const firebaseConfig = {
 
 const firebaseApp = initializeApp(firebaseConfig);
 const db = getFirestore(firebaseApp); // デフォルトデータベースを使用
-console.log('Firebase Firestore initialized with named database: twitter-tool');
+console.log('Firebase Firestore initialized with default database');
 
 // OpenAI クライアントの初期化
 let openai = null;
