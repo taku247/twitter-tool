@@ -2679,8 +2679,8 @@ const cronExecutor = async (req, res) => {
     }
 };
 
-// POST エンドポイント（Vercel Cron Jobs用）
-app.post('/api/cron/universal-executor', cronExecutor);
+// GET エンドポイント（Vercel Cron Jobs用）
+app.get('/api/cron/universal-executor', cronExecutor);
 
 // Twitter List タスク実行関数
 async function executeTwitterListTask(task, executionTime) {

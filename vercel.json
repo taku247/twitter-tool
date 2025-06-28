@@ -15,8 +15,7 @@
   "crons": [
     {
       "path": "/api/cron/universal-executor",
-      "schedule": "*/15 * * * *",
-      "method": "POST"
+      "schedule": "*/15 * * * *"
     }
   ]
 }
