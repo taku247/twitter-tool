@@ -2686,7 +2686,7 @@ async function executeTwitterListTask(task, executionTime) {
     const listData = listDoc.data();
     
     // 前回実行時刻の3分前から取得（マージン）
-    const lastExecuted = listData.lastExecuted ? new Date(listData.lastExecuted) : new Date(0);
+    const lastExecuted = listData.lastExecuted ? new Date(listData.lastExecuted) : new Date(Date.now() - 24 * 60 * 60 * 1000); // 初回は24時間前から
     const marginTime = new Date(lastExecuted.getTime() - 3 * 60 * 1000); // 3分前
     const currentTime = executionTime;
     
@@ -2701,7 +2701,7 @@ async function executeTwitterListTask(task, executionTime) {
     // TwitterAPI.io呼び出し
     const response = await axios.get('https://api.twitterapi.io/twitter/list/tweets', {
         params,
-        headers: { 'Authorization': `Bearer ${process.env.TWITTER_API_KEY}` }
+        headers: { 'X-API-Key': process.env.TWITTER_API_KEY }
     });
     
     const tweets = response.data.data || [];
