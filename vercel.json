@@ -12,10 +12,11 @@
       "dest": "/server.js"
     }
   ],
-  "crons": [
+  "cron": [
     {
       "path": "/api/cron/universal-executor",
-      "schedule": "*/15 * * * *"
+      "schedule": "*/15 * * * *",
+      "method": "POST"
     }
   ]
 }

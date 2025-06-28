@@ -2535,17 +2535,10 @@ const cronExecutor = async (req, res) => {
             });
         }
         
-        // セキュリティチェック（GET/POST両対応）
+        // セキュリティチェック
         const authHeader = req.headers.authorization;
-        const authQuery = req.query.auth; // GET時のクエリパラメータ
-        const expectedAuth = `Bearer ${process.env.CRON_SECRET}`;
-        
-        if (!authHeader && !authQuery) {
-            return res.status(401).json({ error: 'Unauthorized: Missing authentication' });
-        }
-        
-        if (authHeader !== expectedAuth && authQuery !== process.env.CRON_SECRET) {
-            return res.status(401).json({ error: 'Unauthorized: Invalid authentication' });
+        if (!authHeader || authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+            return res.status(401).json({ error: 'Unauthorized' });
         }
         
         console.log(`🔄 [${executionId}] Starting universal cron executor`);
@@ -2686,28 +2679,7 @@ const cronExecutor = async (req, res) => {
     }
 };
 
-// GET（Vercel Cron用）→POST変換エンドポイント
-app.get('/api/cron/universal-executor', async (req, res) => {
-    // GETリクエストをPOSTに変換して内部呼び出し
-    try {
-        const mockReq = {
-            ...req,
-            method: 'POST',
-            headers: {
-                ...req.headers,
-                'content-type': 'application/json'
-            },
-            body: {}
-        };
-        
-        await cronExecutor(mockReq, res);
-    } catch (error) {
-        console.error('GET→POST conversion error:', error);
-        res.status(500).json({ error: error.message });
-    }
-});
-
-// POST（直接実行用）
+// POST エンドポイント（Vercel Cron Jobs用）
 app.post('/api/cron/universal-executor', cronExecutor);
 
 // Twitter List タスク実行関数
