@@ -38,7 +38,9 @@
       "Bash(-H \"Content-Type: application/json\" )",
       "Bash(-d '{}')",
       "Bash(-H \"Content-Type: application/json\" )",
-      "Bash(-H \"Content-Type: application/json\" )"
+      "Bash(-H \"Content-Type: application/json\" )",
+      "Bash(vercel login:*)",
+      "Bash(vercel:*)"
     ],
     "deny": []
   }
