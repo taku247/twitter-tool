@@ -6,7 +6,7 @@ const { OpenAI } = require('openai');
 const WebSocket = require('ws');
 const http = require('http');
 const { initializeApp } = require('firebase/app');
-const { getFirestore, collection, addDoc, query, orderBy, limit, getDocs, deleteDoc, doc, where, writeBatch, setDoc, getDoc } = require('firebase/firestore');
+const { getFirestore, collection, addDoc, query, orderBy, limit, getDocs, deleteDoc, doc, where, writeBatch, setDoc, getDoc, updateDoc } = require('firebase/firestore');
 require('dotenv').config();
 
 const app = express();
@@ -2513,8 +2513,8 @@ async function loadListTweetsFromFirestore(listId) {
     }
 }
 
-// 汎用Cron実行エンドポイント
-app.post('/api/cron/universal-executor', async (req, res) => {
+// 汎用Cron実行エンドポイント（GET/POST両対応）
+const cronExecutor = async (req, res) => {
     const executionId = `exec-${Date.now()}`;
     const startTime = new Date();
     
@@ -2670,7 +2670,11 @@ app.post('/api/cron/universal-executor', async (req, res) => {
             endTime: new Date().toISOString()
         });
     }
-});
+};
+
+// GET/POST両方でcronエンドポイントを提供
+app.get('/api/cron/universal-executor', cronExecutor);
+app.post('/api/cron/universal-executor', cronExecutor);
 
 // Twitter List タスク実行関数
 async function executeTwitterListTask(task, executionTime) {
