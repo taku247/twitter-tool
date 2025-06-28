@@ -6,7 +6,7 @@ const { OpenAI } = require('openai');
 const WebSocket = require('ws');
 const http = require('http');
 const { initializeApp } = require('firebase/app');
-const { getFirestore, collection, addDoc, query, orderBy, limit, getDocs, deleteDoc, doc, where, writeBatch } = require('firebase/firestore');
+const { getFirestore, collection, addDoc, query, orderBy, limit, getDocs, deleteDoc, doc, where, writeBatch, setDoc } = require('firebase/firestore');
 require('dotenv').config();
 
 const app = express();
@@ -2255,7 +2255,7 @@ app.post('/api/lists/register', async (req, res) => {
         try {
             const testResponse = await axios.get(`https://api.twitterapi.io/twitter/list/tweets`, {
                 params: { listId: listId, count: 1 },
-                headers: { 'Authorization': `Bearer ${process.env.TWITTER_API_KEY}` }
+                headers: { 'X-API-Key': process.env.TWITTER_API_KEY }
             });
             
             if (!testResponse.data || testResponse.data.error) {

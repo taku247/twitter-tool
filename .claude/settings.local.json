@@ -36,7 +36,9 @@
       "WebFetch(domain:docs.x.ai)",
       "WebFetch(domain:vercel.com)",
       "Bash(-H \"Content-Type: application/json\" )",
-      "Bash(-d '{}')"
+      "Bash(-d '{}')",
+      "Bash(-H \"Content-Type: application/json\" )",
+      "Bash(-H \"Content-Type: application/json\" )"
     ],
     "deny": []
   }
