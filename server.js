@@ -2660,7 +2660,7 @@ const cronExecutor = async (req, res) => {
             
             const lastExecuted = new Date(task.lastExecuted);
             const minutesSince = (now - lastExecuted) / (1000 * 60);
-            const shouldExecute = minutesSince >= (task.frequency - 0.1); // 0.1分（6秒）のマージン
+            const shouldExecute = minutesSince >= (task.frequency - 2); // 2分のマージン
             
             console.log(`  - last executed: ${lastExecuted.toISOString()}`);
             console.log(`  - minutes since: ${minutesSince.toFixed(2)}`);

@@ -62,6 +62,11 @@ npm start
 
 -   `GET /api/discord/test` - Discord webhook diagnostics and testing
 
+### Debug
+
+-   `GET /api/debug/cron-tasks` - Cron task timing analysis and execution status
+-   `GET /api/debug/cron-executions` - Recent cron execution logs and performance metrics
+
 ## Deployment
 
 This application is deployed on Vercel with automatic deployment configured.
