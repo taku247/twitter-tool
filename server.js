@@ -2774,12 +2774,22 @@ const cronExecutor = async (req, res) => {
         console.log(`📤 Discord webhook URL configured: ${process.env.DISCORD_WEBHOOK_URL ? 'YES' : 'NO'}`);
         
         sendDiscordNotification(results).then(success => {
-            console.log(`✅ [${executionId}] Discord notification completed successfully`);
+            if (success) {
+                console.log(`✅ [${executionId}] Discord notification sent successfully`);
+            } else {
+                console.error(`❌ [${executionId}] Discord notification failed but no exception thrown`);
+            }
         }).catch(error => {
             console.error(`❌ [${executionId}] Discord notification failed:`, error.message);
             console.error(`   Error type: ${error.constructor.name}`);
             console.error(`   Error details:`, error.response?.data || error);
             console.error('   This does not affect cron job execution');
+            
+            // フォールバック: 簡易通知を試行
+            console.log(`🔄 [${executionId}] Attempting fallback notification...`);
+            sendFallbackNotification(results).catch(fallbackError => {
+                console.error(`❌ [${executionId}] Fallback notification also failed:`, fallbackError.message);
+            });
         });
         
         res.json(results);
@@ -3136,6 +3146,46 @@ async function sendDiscordNotification(results) {
             console.error('   HTTP Status:', error.response.status);
             console.error('   Response data:', error.response.data);
         }
+        return false;
+    }
+}
+
+// シンプルなフォールバック通知関数
+async function sendFallbackNotification(results) {
+    if (!process.env.DISCORD_WEBHOOK_URL) {
+        console.log('🚫 Fallback: Discord webhook URL not configured');
+        return false;
+    }
+    
+    try {
+        const { executedTasks, totalProcessingTime, results: taskResults } = results;
+        const totalNewTweets = taskResults.reduce((sum, task) => sum + (task.newItems || 0), 0);
+        const errorTasks = taskResults.filter(task => task.status === 'error');
+        
+        const content = `🤖 **Cron実行完了** | タスク: ${executedTasks}件 | 新規ツイート: ${totalNewTweets}件 | 処理時間: ${totalProcessingTime.toFixed(1)}s | エラー: ${errorTasks.length}件`;
+        
+        const simplePayload = {
+            content: content,
+            username: 'Twitter Bot'
+        };
+        
+        console.log('📤 Sending fallback notification...');
+        const response = await axios.post(process.env.DISCORD_WEBHOOK_URL, simplePayload, {
+            timeout: 30000, // 30秒タイムアウト
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        if (response.status === 204) {
+            console.log('✅ Fallback notification sent successfully');
+            return true;
+        } else {
+            console.error(`❌ Fallback notification failed with status: ${response.status}`);
+            return false;
+        }
+    } catch (error) {
+        console.error('❌ Fallback notification error:', error.message);
         return false;
     }
 }
