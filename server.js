@@ -2804,7 +2804,129 @@ const cronExecutor = async (req, res) => {
     }
 };
 
-// Discord Webhook通知関数
+// 汎用Discord通知クラス
+class DiscordNotifier {
+    constructor(webhookUrl = process.env.DISCORD_WEBHOOK_URL) {
+        this.webhookUrl = webhookUrl;
+        this.defaultUsername = 'Twitter Tool Bot';
+        this.defaultAvatarUrl = 'https://cdn.discordapp.com/attachments/1234567890/twitter-icon.png';
+    }
+    
+    // 基本的なメッセージ送信
+    async sendMessage(content, options = {}) {
+        if (!this.webhookUrl) {
+            console.log('Discord webhook URL not configured, skipping notification');
+            return false;
+        }
+        
+        try {
+            const payload = {
+                content: content,
+                username: options.username || this.defaultUsername,
+                avatar_url: options.avatarUrl || this.defaultAvatarUrl,
+                tts: options.tts || false
+            };
+            
+            const response = await axios.post(this.webhookUrl, payload);
+            return response.status === 204;
+        } catch (error) {
+            console.error('Discord message send failed:', error.message);
+            return false;
+        }
+    }
+    
+    // Embedメッセージ送信
+    async sendEmbed(embed, options = {}) {
+        if (!this.webhookUrl) {
+            console.log('Discord webhook URL not configured, skipping notification');
+            return false;
+        }
+        
+        try {
+            const payload = {
+                username: options.username || this.defaultUsername,
+                avatar_url: options.avatarUrl || this.defaultAvatarUrl,
+                embeds: Array.isArray(embed) ? embed : [embed]
+            };
+            
+            const response = await axios.post(this.webhookUrl, payload);
+            return response.status === 204;
+        } catch (error) {
+            console.error('Discord embed send failed:', error.message);
+            return false;
+        }
+    }
+    
+    // 事前定義されたテンプレート
+    async sendSuccess(title, description, fields = []) {
+        const embed = {
+            title: `✅ ${title}`,
+            description: description,
+            color: 0x00ff88, // 緑色
+            fields: fields,
+            timestamp: new Date().toISOString()
+        };
+        return this.sendEmbed(embed);
+    }
+    
+    async sendError(title, error, fields = []) {
+        const embed = {
+            title: `❌ ${title}`,
+            description: error.message || error,
+            color: 0xff0044, // 赤色
+            fields: fields,
+            timestamp: new Date().toISOString()
+        };
+        return this.sendEmbed(embed);
+    }
+    
+    async sendInfo(title, description, fields = []) {
+        const embed = {
+            title: `ℹ️ ${title}`,
+            description: description,
+            color: 0x667eea, // 青色
+            fields: fields,
+            timestamp: new Date().toISOString()
+        };
+        return this.sendEmbed(embed);
+    }
+    
+    async sendWarning(title, description, fields = []) {
+        const embed = {
+            title: `⚠️ ${title}`,
+            description: description,
+            color: 0xffa500, // オレンジ色
+            fields: fields,
+            timestamp: new Date().toISOString()
+        };
+        return this.sendEmbed(embed);
+    }
+}
+
+// グローバルDiscord通知インスタンス
+const discord = new DiscordNotifier();
+
+// 使用例:
+// await discord.sendMessage('シンプルなテキストメッセージ');
+// await discord.sendSuccess('処理完了', '100件のツイートを処理しました');
+// await discord.sendError('エラー発生', new Error('API制限に達しました'));
+// await discord.sendInfo('お知らせ', 'メンテナンスは明日10時から');
+// await discord.sendWarning('警告', 'ディスク容量が残り少なくなっています');
+// 
+// カスタムEmbed例:
+// await discord.sendEmbed({
+//     title: 'カスタムタイトル',
+//     description: '詳細な説明',
+//     color: 0x00ff00,
+//     fields: [
+//         { name: 'フィールド1', value: '値1', inline: true },
+//         { name: 'フィールド2', value: '値2', inline: true }
+//     ],
+//     footer: { text: 'フッターテキスト' },
+//     image: { url: 'https://example.com/image.png' }
+// });
+
+// Cron実行結果用の特殊化された通知関数
 async function sendDiscordNotification(results) {
     if (!process.env.DISCORD_WEBHOOK_URL) {
         console.log('Discord webhook URL not configured, skipping notification');
@@ -2881,21 +3003,17 @@ async function sendDiscordNotification(results) {
             });
         }
         
-        // Discord Webhookに送信
-        const payload = {
+        // Discord通知を送信（拡張されたクラスを使用）
+        const notifier = new DiscordNotifier();
+        const success = await notifier.sendEmbed(embed, {
             username: 'Twitter List Scheduler',
-            avatar_url: 'https://cdn.discordapp.com/attachments/1234567890/twitter-icon.png',
-            embeds: [embed]
-        };
-        
-        const response = await axios.post(process.env.DISCORD_WEBHOOK_URL, payload, {
-            headers: { 'Content-Type': 'application/json' }
+            avatarUrl: 'https://cdn.discordapp.com/attachments/1234567890/twitter-icon.png'
         });
         
-        if (response.status === 204) {
+        if (success) {
             console.log('Discord notification sent successfully');
         } else {
-            console.log(`Discord notification response: ${response.status}`);
+            console.log('Discord notification failed');
         }
         
     } catch (error) {
