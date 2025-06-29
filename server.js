@@ -2771,7 +2771,8 @@ const cronExecutor = async (req, res) => {
         
         // Discord通知を送信（非同期、エラーがあっても処理を続行）
         sendDiscordNotification(results).catch(error => {
-            console.error('Discord notification failed:', error.message);
+            console.error('❌ Discord notification failed in cron execution:', error.message);
+            console.error('   This does not affect cron job execution');
         });
         
         res.json(results);
@@ -2797,7 +2798,8 @@ const cronExecutor = async (req, res) => {
         
         // エラー時もDiscord通知を送信
         sendDiscordNotification(errorResults).catch(notifyError => {
-            console.error('Discord notification failed:', notifyError.message);
+            console.error('❌ Discord notification failed for error case:', notifyError.message);
+            console.error('   Original cron error:', error.message);
         });
         
         res.status(500).json(errorResults);
@@ -2815,7 +2817,8 @@ class DiscordNotifier {
     // 基本的なメッセージ送信
     async sendMessage(content, options = {}) {
         if (!this.webhookUrl) {
-            console.log('Discord webhook URL not configured, skipping notification');
+            console.error('❌ Discord webhook URL not configured, skipping notification');
+            console.error('   Please set DISCORD_WEBHOOK_URL environment variable');
             return false;
         }
         
@@ -2827,10 +2830,29 @@ class DiscordNotifier {
                 tts: options.tts || false
             };
             
+            console.log('📤 Sending Discord message...');
             const response = await axios.post(this.webhookUrl, payload);
-            return response.status === 204;
+            
+            if (response.status === 204) {
+                console.log('✅ Discord message sent successfully');
+                return true;
+            } else {
+                console.error(`❌ Discord webhook returned unexpected status: ${response.status}`);
+                console.error('   Response:', response.data);
+                return false;
+            }
         } catch (error) {
-            console.error('Discord message send failed:', error.message);
+            console.error('❌ Discord message send failed:', error.message);
+            if (error.response) {
+                console.error('   Status:', error.response.status);
+                console.error('   Response:', error.response.data);
+                console.error('   Headers:', error.response.headers);
+            } else if (error.request) {
+                console.error('   No response received from Discord');
+                console.error('   Request details:', error.request);
+            } else {
+                console.error('   Error details:', error);
+            }
             return false;
         }
     }
@@ -2838,7 +2860,8 @@ class DiscordNotifier {
     // Embedメッセージ送信
     async sendEmbed(embed, options = {}) {
         if (!this.webhookUrl) {
-            console.log('Discord webhook URL not configured, skipping notification');
+            console.error('❌ Discord webhook URL not configured, skipping notification');
+            console.error('   Please set DISCORD_WEBHOOK_URL environment variable');
             return false;
         }
         
@@ -2849,10 +2872,39 @@ class DiscordNotifier {
                 embeds: Array.isArray(embed) ? embed : [embed]
             };
             
+            console.log('📤 Sending Discord embed message...');
+            console.log('   Webhook URL:', this.webhookUrl.substring(0, 50) + '...');
+            console.log('   Embed count:', Array.isArray(embed) ? embed.length : 1);
+            
             const response = await axios.post(this.webhookUrl, payload);
-            return response.status === 204;
+            
+            if (response.status === 204) {
+                console.log('✅ Discord embed sent successfully');
+                return true;
+            } else {
+                console.error(`❌ Discord webhook returned unexpected status: ${response.status}`);
+                console.error('   Response:', response.data);
+                return false;
+            }
         } catch (error) {
-            console.error('Discord embed send failed:', error.message);
+            console.error('❌ Discord embed send failed:', error.message);
+            if (error.response) {
+                console.error('   Status:', error.response.status);
+                console.error('   Status Text:', error.response.statusText);
+                console.error('   Response:', error.response.data);
+                if (error.response.status === 400) {
+                    console.error('   💡 Hint: Check webhook URL format or embed structure');
+                } else if (error.response.status === 401) {
+                    console.error('   💡 Hint: Invalid webhook URL or token');
+                } else if (error.response.status === 404) {
+                    console.error('   💡 Hint: Webhook URL not found - it may have been deleted');
+                }
+            } else if (error.request) {
+                console.error('   No response received from Discord');
+                console.error('   💡 Hint: Check network connection or Discord service status');
+            } else {
+                console.error('   Error details:', error);
+            }
             return false;
         }
     }
@@ -3011,13 +3063,14 @@ async function sendDiscordNotification(results) {
         });
         
         if (success) {
-            console.log('Discord notification sent successfully');
+            console.log('✅ Cron Discord notification sent successfully');
         } else {
-            console.log('Discord notification failed');
+            console.error('❌ Cron Discord notification failed to send');
         }
         
     } catch (error) {
-        console.error('Failed to send Discord notification:', error.message);
+        console.error('❌ Failed to send Discord notification in sendDiscordNotification:', error.message);
+        console.error('   Stack trace:', error.stack);
     }
 }
 
