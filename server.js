@@ -25,13 +25,13 @@ if (!process.env.TWITTER_API_KEY) {
 
 // Firebase 初期化
 const firebaseConfig = {
-    apiKey: "AIzaSyAME5BfBd-xfOpV-Mb7x2Q_XS9wG_jrwXA",
-    authDomain: "meme-coin-tracker-79c24.firebaseapp.com",
-    projectId: "meme-coin-tracker-79c24",
-    storageBucket: "meme-coin-tracker-79c24.firebasestorage.app",
-    messagingSenderId: "944579690444",
-    appId: "1:944579690444:web:4f452680c38ff17caa2769",
-    measurementId: "G-78KWRC4N05"
+    apiKey: process.env.FIREBASE_API_KEY,
+    authDomain: process.env.FIREBASE_AUTH_DOMAIN,
+    projectId: process.env.FIREBASE_PROJECT_ID,
+    storageBucket: process.env.FIREBASE_STORAGE_BUCKET,
+    messagingSenderId: process.env.FIREBASE_MESSAGING_SENDER_ID,
+    appId: process.env.FIREBASE_APP_ID,
+    measurementId: process.env.FIREBASE_MEASUREMENT_ID
 };
 
 const firebaseApp = initializeApp(firebaseConfig);
@@ -3208,6 +3208,26 @@ async function sendFallbackNotification(results) {
 
 // GET エンドポイント（Vercel Cron Jobs用）
 app.get('/api/cron/universal-executor', cronExecutor);
+
+// Firebase configuration endpoint
+app.get('/api/config/firebase', (req, res) => {
+    try {
+        const firebaseConfig = {
+            apiKey: process.env.FIREBASE_API_KEY,
+            authDomain: process.env.FIREBASE_AUTH_DOMAIN,
+            projectId: process.env.FIREBASE_PROJECT_ID,
+            storageBucket: process.env.FIREBASE_STORAGE_BUCKET,
+            messagingSenderId: process.env.FIREBASE_MESSAGING_SENDER_ID,
+            appId: process.env.FIREBASE_APP_ID,
+            measurementId: process.env.FIREBASE_MEASUREMENT_ID
+        };
+
+        res.json(firebaseConfig);
+    } catch (error) {
+        console.error('Error getting Firebase config:', error);
+        res.status(500).json({ error: 'Failed to get Firebase configuration' });
+    }
+});
 
 // Cron実行ログ分析用エンドポイント
 app.get('/api/debug/cron-executions', async (req, res) => {

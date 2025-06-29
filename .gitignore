@@ -28,3 +28,7 @@ yarn-error.log*
 
 # Private memo
 memo
+
+# Reports
+reports/
+integrity-report-*.json

@@ -797,21 +797,30 @@
             Timestamp 
         } from 'https://www.gstatic.com/firebasejs/11.9.1/firebase-firestore.js';
 
-        // Firebase configuration
-        const firebaseConfig = {
-            apiKey: "AIzaSyAME5BfBd-xfOpV-Mb7x2Q_XS9wG_jrwXA",
-            authDomain: "meme-coin-tracker-79c24.firebaseapp.com",
-            projectId: "meme-coin-tracker-79c24",
-            storageBucket: "meme-coin-tracker-79c24.firebasestorage.app",
-            messagingSenderId: "944579690444",
-            appId: "1:944579690444:web:4f452680c38ff17caa2769",
-            measurementId: "G-78KWRC4N05"
-        };
-
-        // Initialize Firebase
-        const app = initializeApp(firebaseConfig);
-        // Use named database 'twitter-tool' instead of default
-        const db = getFirestore(app, 'twitter-tool');
+        // Firebase configuration - load from API
+        let app, db;
+        
+        async function initializeFirebase() {
+            try {
+                const response = await fetch('/api/config/firebase');
+                const firebaseConfig = await response.json();
+                
+                if (!response.ok) {
+                    throw new Error('Failed to load Firebase configuration');
+                }
+                
+                // Initialize Firebase
+                app = initializeApp(firebaseConfig);
+                // Use named database 'twitter-tool' instead of default
+                db = getFirestore(app, 'twitter-tool');
+                
+                return true;
+            } catch (error) {
+                console.error('Firebase initialization failed:', error);
+                alert('Firebase設定の読み込みに失敗しました。管理者にお問い合わせください。');
+                return false;
+            }
+        }
 
         // Firestore Templates Service
         class FirestoreTemplatesService {
@@ -1762,9 +1771,11 @@
 
         // ページ読み込み時にテンプレートを初期化
         document.addEventListener('DOMContentLoaded', async function() {
-            // Firebase初期化を待つ
-            await waitForFirebase();
-            await initializeTemplates();
+            // Firebase初期化
+            const firebaseReady = await initializeFirebase();
+            if (firebaseReady) {
+                await initializeTemplates();
+            }
         });
 
         // Firebase初期化を待機

@@ -26,6 +26,15 @@ Create a `.env` file with:
 ```
 TWITTER_API_KEY=your_twitterapi_io_key
 OPENAI_API_KEY=your_openai_api_key
+
+# Firebase Configuration
+FIREBASE_API_KEY=your_firebase_api_key
+FIREBASE_AUTH_DOMAIN=your_project.firebaseapp.com
+FIREBASE_PROJECT_ID=your_project_id
+FIREBASE_STORAGE_BUCKET=your_project.firebasestorage.app
+FIREBASE_MESSAGING_SENDER_ID=your_sender_id
+FIREBASE_APP_ID=your_app_id
+FIREBASE_MEASUREMENT_ID=your_measurement_id
 ```
 
 ## Local Development
@@ -1101,6 +1110,71 @@ CRON_SECRET=your-random-secret-16chars-minimum
 #### インフラ
 - Vercel（ホスティング + Cron Jobs）
 - Serverless Functions
+
+## 🛠️ 開発ツール
+
+### データベース整合性チェックツール
+
+Firestore内のデータとTwitter APIのデータの整合性を確認するスクリプトです。
+
+#### 機能
+
+- **DB保存ツイートの検証**: `collected_tweets`コレクションのデータをチェック
+- **API比較分析**: 同期間のツイートをTwitterAPI.ioから取得して比較
+- **欠落・重複検出**: 
+  - 欠落ツイート（APIにあってDBにない）
+  - 重複ツイート（同じIDが複数回保存）
+- **詳細レポート生成**: コンソール出力とJSON形式での保存
+
+#### 実行方法
+
+```bash
+# npmスクリプトで実行
+npm run check:db
+
+# または直接実行
+node scripts/db-integrity-check.js
+```
+
+#### 出力例
+
+```
+🔍 データベース整合性チェック開始...
+
+📋 アクティブなタスク数: 1
+
+🔍 タスク「Fixed Database Test List - 定期取得」をチェック中...
+  - タスクID: task-1751126677056-9zpm9712c
+  - 頻度: 15分
+  ✅ DB保存済みツイート: 125件
+  📅 時間範囲: 2025/6/28 17:00:00 〜 2025/6/29 20:45:00
+  ✅ API取得ツイート: 130件
+  📊 比較結果:
+     - 欠落ツイート: 5件
+     - 重複ツイート: 0件
+
+================================================================================
+📊 整合性チェックレポート
+================================================================================
+【サマリー】
+- DB保存済みツイート総数: 125
+- API取得ツイート総数: 130
+- 欠落ツイート総数: 5
+- 重複ツイート総数: 0
+
+📄 詳細レポートを保存しました: ./integrity-report-1751197553123.json
+```
+
+#### レポートファイル
+
+実行後、プロジェクトルートに `integrity-report-[タイムスタンプ].json` 形式で詳細レポートが保存されます。
+
+レポートには以下の情報が含まれます：
+- 実行日時
+- 各タスクの詳細な分析結果
+- 欠落ツイートの詳細（ID、作成者、本文の一部）
+- 重複ツイートの詳細（ID、重複回数）
+- エラー情報（発生した場合）
 
 ## License
 

@@ -6,7 +6,8 @@
   "scripts": {
     "start": "node server.js",
     "dev": "PORT=3002 nodemon server.js",
-    "build": "echo 'No build step required'"
+    "build": "echo 'No build step required'",
+    "check:db": "node scripts/db-integrity-check.js"
   },
   "engines": {
     "node": ">=18.0.0"
