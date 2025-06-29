@@ -2901,7 +2901,7 @@ class DiscordNotifier {
                 console.log('   Embed count:', Array.isArray(embed) ? embed.length : 1);
                 console.log('🔍 Payload size:', JSON.stringify(payload).length, 'characters');
                 
-                const timeoutMs = 10000; // 固定10秒
+                const timeoutMs = 60000; // 固定60秒（Cron環境対応）
                 console.log(`⏱️  Timeout: ${timeoutMs/1000}s`);
                 
                 const response = await axios.post(this.webhookUrl, payload, {

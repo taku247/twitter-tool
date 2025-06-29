@@ -58,6 +58,10 @@ npm start
 
 -   `GET /api/health` - Health check
 
+### Discord
+
+-   `GET /api/discord/test` - Discord webhook diagnostics and testing
+
 ## Deployment
 
 This application is deployed on Vercel with automatic deployment configured.
