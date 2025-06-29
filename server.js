@@ -2410,17 +2410,25 @@ app.delete('/api/lists/:listId', async (req, res) => {
         
         console.log(`Delete request for listId: ${listId}`);
         
-        // Firestoreからリスト情報を取得
-        const listDoc = await getDoc(doc(db, 'twitter_lists', listId));
-        if (!listDoc.exists()) {
-            console.log(`List not found in twitter_lists: ${listId}`);
+        // TwitterリストIDでFirestoreドキュメントを検索
+        const listQuery = query(
+            collection(db, 'twitter_lists'),
+            where('twitterListId', '==', listId)
+        );
+        const listSnapshot = await getDocs(listQuery);
+        
+        if (listSnapshot.empty) {
+            console.log(`List not found with twitterListId: ${listId}`);
             return res.status(404).json({ error: 'リストが見つかりません' });
         }
+        
+        const listDoc = listSnapshot.docs[0];
+        const firestoreListId = listDoc.id; // 実際のFirestoreドキュメントID
         
         // 1. cron_taskを削除
         const taskQuery = query(
             collection(db, 'cron_tasks'),
-            where('config.relatedTableId', '==', listId)
+            where('config.relatedTableId', '==', firestoreListId)
         );
         const taskSnapshot = await getDocs(taskQuery);
         const batch = writeBatch(db);
@@ -2430,12 +2438,12 @@ app.delete('/api/lists/:listId', async (req, res) => {
         });
         
         // 2. twitter_listを削除
-        batch.delete(doc(db, 'twitter_lists', listId));
+        batch.delete(listDoc.ref);
         
         // 3. 関連するcollected_tweetsを削除
         const tweetsQuery = query(
             collection(db, 'collected_tweets'),
-            where('sourceId', '==', listId)
+            where('sourceId', '==', firestoreListId)
         );
         const tweetsSnapshot = await getDocs(tweetsQuery);
         
@@ -2446,7 +2454,7 @@ app.delete('/api/lists/:listId', async (req, res) => {
         // 4. 関連するcron_executionsを削除
         const execQuery = query(
             collection(db, 'cron_executions'),
-            where('metadata.sourceId', '==', listId)
+            where('metadata.sourceId', '==', firestoreListId)
         );
         const execSnapshot = await getDocs(execQuery);
         
@@ -2474,17 +2482,25 @@ app.patch('/api/lists/:listId/toggle', async (req, res) => {
         
         console.log(`Toggle request for listId: ${listId}, active: ${active}`);
         
-        // Firestoreからリスト情報を取得
-        const listDoc = await getDoc(doc(db, 'twitter_lists', listId));
-        if (!listDoc.exists()) {
-            console.log(`List not found in twitter_lists: ${listId}`);
+        // TwitterリストIDでFirestoreドキュメントを検索
+        const listQuery = query(
+            collection(db, 'twitter_lists'),
+            where('twitterListId', '==', listId)
+        );
+        const listSnapshot = await getDocs(listQuery);
+        
+        if (listSnapshot.empty) {
+            console.log(`List not found with twitterListId: ${listId}`);
             return res.status(404).json({ error: 'リストが見つかりません' });
         }
+        
+        const listDoc = listSnapshot.docs[0];
+        const firestoreListId = listDoc.id; // 実際のFirestoreドキュメントID
         
         // 対応するcron_taskを取得
         const taskQuery = query(
             collection(db, 'cron_tasks'),
-            where('config.relatedTableId', '==', listId)
+            where('config.relatedTableId', '==', firestoreListId)
         );
         const taskSnapshot = await getDocs(taskQuery);
         

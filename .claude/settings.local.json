@@ -42,7 +42,8 @@
       "Bash(vercel login:*)",
       "Bash(vercel:*)",
       "Bash(node:*)",
-      "Bash(echo $TZ)"
+      "Bash(echo $TZ)",
+      "Bash(find:*)"
     ],
     "deny": []
   }
