@@ -2885,8 +2885,8 @@ class DiscordNotifier {
             return false;
         }
         
-        const maxRetries = 3;
-        const baseDelay = 2000; // 2秒
+        const maxRetries = 20;
+        const baseDelay = 1000; // 1秒
         
         for (let attempt = 1; attempt <= maxRetries; attempt++) {
             try {
@@ -2901,8 +2901,11 @@ class DiscordNotifier {
                 console.log('   Embed count:', Array.isArray(embed) ? embed.length : 1);
                 console.log('🔍 Payload size:', JSON.stringify(payload).length, 'characters');
                 
+                const timeoutMs = 10000; // 固定10秒
+                console.log(`⏱️  Timeout: ${timeoutMs/1000}s`);
+                
                 const response = await axios.post(this.webhookUrl, payload, {
-                    timeout: 15000, // 15秒タイムアウトに増加
+                    timeout: timeoutMs,
                     headers: {
                         'Content-Type': 'application/json'
                     }
@@ -2922,7 +2925,16 @@ class DiscordNotifier {
                 console.error(`❌ Discord embed send failed (attempt ${attempt}/${maxRetries}):`, error.message);
                 
                 let shouldRetry = false;
-                let retryDelay = baseDelay * attempt; // 指数バックオフ
+                let retryDelay;
+                
+                // リトライ戦略: 段階的に待機時間を調整
+                if (attempt <= 3) {
+                    retryDelay = baseDelay * attempt; // 1s, 2s, 3s
+                } else if (attempt <= 6) {
+                    retryDelay = 5000; // 5秒固定
+                } else {
+                    retryDelay = 10000; // 10秒固定
+                }
                 
                 if (error.response) {
                     console.error('   Status:', error.response.status);
@@ -2933,12 +2945,16 @@ class DiscordNotifier {
                         // Rate limit - Retry-Afterヘッダーがあれば使用
                         const retryAfter = error.response.headers['retry-after'];
                         if (retryAfter) {
-                            retryDelay = parseInt(retryAfter) * 1000;
+                            retryDelay = Math.min(parseInt(retryAfter) * 1000, 60000); // 最大60秒
                         }
                         console.error(`   💡 Rate limit exceeded. Will retry after ${retryDelay/1000}s`);
                         shouldRetry = true;
                     } else if (error.response.status >= 500) {
                         console.error('   💡 Discord server error. Will retry');
+                        shouldRetry = true;
+                    } else if (error.response.status === 400 && attempt <= 5) {
+                        // 400エラーでも最初の5回は再試行（一時的な問題の可能性）
+                        console.error('   💡 Bad request - will retry a few times in case of temporary issue');
                         shouldRetry = true;
                     } else {
                         console.error('   💡 Client error - not retrying');
