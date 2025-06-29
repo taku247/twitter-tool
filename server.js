@@ -3102,17 +3102,60 @@ async function executeTwitterListTask(task, executionTime) {
     console.log(`⏰ Fetching tweets from ${marginTime.toISOString()} to ${currentTime.toISOString()}`);
     console.log(`🔗 API params:`, JSON.stringify(params));
     
-    // TwitterAPI.io呼び出し
-    const response = await axios.get('https://api.twitterapi.io/twitter/list/tweets', {
-        params,
-        headers: { 'X-API-Key': process.env.TWITTER_API_KEY }
-    });
+    // TwitterAPI.io全件取得（ページネーション対応）
+    const allTweets = [];
+    let cursor = '';
+    let page = 1;
+    let hasNextPage = true;
     
-    console.log(`📊 API response status: ${response.status}`);
-    console.log(`📊 API response data structure:`, Object.keys(response.data));
+    console.log(`🔄 Starting paginated fetch for all tweets...`);
     
-    const tweets = response.data.data || response.data.tweets || [];
-    console.log(`📨 API returned ${tweets.length} tweets`);
+    while (hasNextPage) {
+        const pageParams = {
+            ...params,
+            cursor: cursor
+        };
+        
+        console.log(`📄 Fetching page ${page} (cursor: ${cursor || 'initial'})`);
+        
+        const response = await axios.get('https://api.twitterapi.io/twitter/list/tweets', {
+            params: pageParams,
+            headers: { 'X-API-Key': process.env.TWITTER_API_KEY }
+        });
+        
+        if (response.status !== 200) {
+            console.error(`❌ API returned status ${response.status} on page ${page}`);
+            break;
+        }
+        
+        const pageData = response.data;
+        const pageTweets = pageData.data || pageData.tweets || [];
+        
+        console.log(`📊 Page ${page}: ${pageTweets.length} tweets, has_next_page: ${pageData.has_next_page}`);
+        
+        if (pageTweets.length > 0) {
+            allTweets.push(...pageTweets);
+        }
+        
+        // 次のページがあるかチェック
+        hasNextPage = pageData.has_next_page === true;
+        if (hasNextPage && pageData.next_cursor) {
+            cursor = pageData.next_cursor;
+            page++;
+        } else {
+            hasNextPage = false;
+        }
+        
+        // 安全のため最大20ページまで（400件）
+        if (page > 20) {
+            console.log(`⚠️ Reached maximum page limit (20 pages), stopping pagination`);
+            break;
+        }
+    }
+    
+    console.log(`✅ Pagination completed: ${page} pages fetched, ${allTweets.length} total tweets`);
+    
+    const tweets = allTweets;
     
     // デバッグ用：最初の数件のツイート情報をログ出力
     if (tweets.length > 0) {
@@ -3237,6 +3280,7 @@ async function executeTwitterListTask(task, executionTime) {
     return { 
         newTweets: uniqueTweets.length,
         totalFetched: tweets.length,
+        pagesRetrieved: page,
         duplicatesSkipped: newTweets.length - uniqueTweets.length,
         alreadyInDB: tweets.length - newTweets.length
     };
