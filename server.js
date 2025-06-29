@@ -2770,8 +2770,15 @@ const cronExecutor = async (req, res) => {
         console.log(`✅ [${executionId}] Execution completed: ${results.executedTasks} tasks executed in ${results.totalProcessingTime}s`);
         
         // Discord通知を送信（非同期、エラーがあっても処理を続行）
-        sendDiscordNotification(results).catch(error => {
-            console.error('❌ Discord notification failed in cron execution:', error.message);
+        console.log(`📤 [${executionId}] Attempting to send Discord notification...`);
+        console.log(`📤 Discord webhook URL configured: ${process.env.DISCORD_WEBHOOK_URL ? 'YES' : 'NO'}`);
+        
+        sendDiscordNotification(results).then(success => {
+            console.log(`✅ [${executionId}] Discord notification completed successfully`);
+        }).catch(error => {
+            console.error(`❌ [${executionId}] Discord notification failed:`, error.message);
+            console.error(`   Error type: ${error.constructor.name}`);
+            console.error(`   Error details:`, error.response?.data || error);
             console.error('   This does not affect cron job execution');
         });
         
@@ -2797,8 +2804,11 @@ const cronExecutor = async (req, res) => {
         };
         
         // エラー時もDiscord通知を送信
-        sendDiscordNotification(errorResults).catch(notifyError => {
-            console.error('❌ Discord notification failed for error case:', notifyError.message);
+        console.log(`📤 [${executionId}] Attempting to send Discord error notification...`);
+        sendDiscordNotification(errorResults).then(success => {
+            console.log(`✅ [${executionId}] Discord error notification completed successfully`);
+        }).catch(notifyError => {
+            console.error(`❌ [${executionId}] Discord error notification failed:`, notifyError.message);
             console.error('   Original cron error:', error.message);
         });
         
@@ -2857,7 +2867,7 @@ class DiscordNotifier {
         }
     }
     
-    // Embedメッセージ送信
+    // Embedメッセージ送信（リトライ機能付き）
     async sendEmbed(embed, options = {}) {
         if (!this.webhookUrl) {
             console.error('❌ Discord webhook URL not configured, skipping notification');
@@ -2865,48 +2875,86 @@ class DiscordNotifier {
             return false;
         }
         
-        try {
-            const payload = {
-                username: options.username || this.defaultUsername,
-                avatar_url: options.avatarUrl || this.defaultAvatarUrl,
-                embeds: Array.isArray(embed) ? embed : [embed]
-            };
-            
-            console.log('📤 Sending Discord embed message...');
-            console.log('   Webhook URL:', this.webhookUrl.substring(0, 50) + '...');
-            console.log('   Embed count:', Array.isArray(embed) ? embed.length : 1);
-            
-            const response = await axios.post(this.webhookUrl, payload);
-            
-            if (response.status === 204) {
-                console.log('✅ Discord embed sent successfully');
-                return true;
-            } else {
-                console.error(`❌ Discord webhook returned unexpected status: ${response.status}`);
-                console.error('   Response:', response.data);
-                return false;
-            }
-        } catch (error) {
-            console.error('❌ Discord embed send failed:', error.message);
-            if (error.response) {
-                console.error('   Status:', error.response.status);
-                console.error('   Status Text:', error.response.statusText);
-                console.error('   Response:', error.response.data);
-                if (error.response.status === 400) {
-                    console.error('   💡 Hint: Check webhook URL format or embed structure');
-                } else if (error.response.status === 401) {
-                    console.error('   💡 Hint: Invalid webhook URL or token');
-                } else if (error.response.status === 404) {
-                    console.error('   💡 Hint: Webhook URL not found - it may have been deleted');
+        const maxRetries = 3;
+        const baseDelay = 2000; // 2秒
+        
+        for (let attempt = 1; attempt <= maxRetries; attempt++) {
+            try {
+                const payload = {
+                    username: options.username || this.defaultUsername,
+                    avatar_url: options.avatarUrl || this.defaultAvatarUrl,
+                    embeds: Array.isArray(embed) ? embed : [embed]
+                };
+                
+                console.log(`📤 Sending Discord embed message... (attempt ${attempt}/${maxRetries})`);
+                console.log('   Webhook URL:', this.webhookUrl.substring(0, 50) + '...');
+                console.log('   Embed count:', Array.isArray(embed) ? embed.length : 1);
+                console.log('🔍 Payload size:', JSON.stringify(payload).length, 'characters');
+                
+                const response = await axios.post(this.webhookUrl, payload, {
+                    timeout: 15000, // 15秒タイムアウトに増加
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                console.log('🔍 Discord API response status:', response.status);
+                
+                if (response.status === 204) {
+                    console.log(`✅ Discord embed sent successfully on attempt ${attempt}`);
+                    return true;
+                } else {
+                    console.error(`❌ Discord webhook returned unexpected status: ${response.status}`);
+                    console.error('   Response:', response.data);
+                    return false;
                 }
-            } else if (error.request) {
-                console.error('   No response received from Discord');
-                console.error('   💡 Hint: Check network connection or Discord service status');
-            } else {
-                console.error('   Error details:', error);
+            } catch (error) {
+                console.error(`❌ Discord embed send failed (attempt ${attempt}/${maxRetries}):`, error.message);
+                
+                let shouldRetry = false;
+                let retryDelay = baseDelay * attempt; // 指数バックオフ
+                
+                if (error.response) {
+                    console.error('   Status:', error.response.status);
+                    console.error('   Status Text:', error.response.statusText);
+                    console.error('   Response:', error.response.data);
+                    
+                    if (error.response.status === 429) {
+                        // Rate limit - Retry-Afterヘッダーがあれば使用
+                        const retryAfter = error.response.headers['retry-after'];
+                        if (retryAfter) {
+                            retryDelay = parseInt(retryAfter) * 1000;
+                        }
+                        console.error(`   💡 Rate limit exceeded. Will retry after ${retryDelay/1000}s`);
+                        shouldRetry = true;
+                    } else if (error.response.status >= 500) {
+                        console.error('   💡 Discord server error. Will retry');
+                        shouldRetry = true;
+                    } else {
+                        console.error('   💡 Client error - not retrying');
+                    }
+                } else if (error.code === 'ECONNABORTED' || error.code === 'ETIMEDOUT') {
+                    console.error('   💡 Request timeout. Will retry with longer timeout');
+                    shouldRetry = true;
+                } else if (error.request) {
+                    console.error('   💡 No response received. Will retry');
+                    shouldRetry = true;
+                } else {
+                    console.error('   💡 Request setup error. Not retrying');
+                }
+                
+                if (attempt < maxRetries && shouldRetry) {
+                    console.log(`⏳ Waiting ${retryDelay/1000}s before retry...`);
+                    await new Promise(resolve => setTimeout(resolve, retryDelay));
+                } else if (!shouldRetry) {
+                    console.error('   ❌ Error is not retryable, giving up');
+                    return false;
+                }
             }
-            return false;
         }
+        
+        console.error(`❌ All ${maxRetries} attempts failed, giving up`);
+        return false;
     }
     
     // 事前定義されたテンプレート
@@ -2980,12 +3028,17 @@ const discord = new DiscordNotifier();
 
 // Cron実行結果用の特殊化された通知関数
 async function sendDiscordNotification(results) {
+    console.log('🔍 Discord notification function called');
+    console.log(`🔍 Webhook URL configured: ${process.env.DISCORD_WEBHOOK_URL ? 'YES (length: ' + process.env.DISCORD_WEBHOOK_URL.length + ')' : 'NO'}`);
+    
     if (!process.env.DISCORD_WEBHOOK_URL) {
-        console.log('Discord webhook URL not configured, skipping notification');
-        return;
+        console.error('❌ Discord webhook URL not configured, skipping notification');
+        console.error('   Please set DISCORD_WEBHOOK_URL environment variable');
+        return false;
     }
     
     try {
+        console.log('🔍 Building Discord embed message...');
         const { executedTasks, totalProcessingTime, results: taskResults } = results;
         
         // 成功・失敗・新規ツイート数を集計
@@ -3056,7 +3109,12 @@ async function sendDiscordNotification(results) {
         }
         
         // Discord通知を送信（拡張されたクラスを使用）
+        console.log('🔍 Creating Discord notifier instance...');
         const notifier = new DiscordNotifier();
+        
+        console.log('🔍 Sending Discord embed message...');
+        console.log('🔍 Embed data:', JSON.stringify(embed, null, 2));
+        
         const success = await notifier.sendEmbed(embed, {
             username: 'Twitter List Scheduler',
             avatarUrl: 'https://cdn.discordapp.com/attachments/1234567890/twitter-icon.png'
@@ -3064,18 +3122,198 @@ async function sendDiscordNotification(results) {
         
         if (success) {
             console.log('✅ Cron Discord notification sent successfully');
+            return true;
         } else {
             console.error('❌ Cron Discord notification failed to send');
+            return false;
         }
         
     } catch (error) {
         console.error('❌ Failed to send Discord notification in sendDiscordNotification:', error.message);
+        console.error('   Error type:', error.constructor.name);
         console.error('   Stack trace:', error.stack);
+        if (error.response) {
+            console.error('   HTTP Status:', error.response.status);
+            console.error('   Response data:', error.response.data);
+        }
+        return false;
     }
 }
 
 // GET エンドポイント（Vercel Cron Jobs用）
 app.get('/api/cron/universal-executor', cronExecutor);
+
+// Discord webhook直接テスト用エンドポイント
+app.get('/api/discord/test', async (req, res) => {
+    const testResults = {
+        timestamp: new Date().toISOString(),
+        environment: process.env.VERCEL_ENV || 'local',
+        tests: []
+    };
+    
+    console.log('🧪 Starting Discord webhook diagnostics...');
+    
+    // Test 1: 環境変数確認
+    const webhookUrlConfigured = !!process.env.DISCORD_WEBHOOK_URL;
+    testResults.tests.push({
+        name: 'Environment Variable Check',
+        success: webhookUrlConfigured,
+        details: webhookUrlConfigured ? 
+            `URL length: ${process.env.DISCORD_WEBHOOK_URL.length} chars` : 
+            'DISCORD_WEBHOOK_URL not set'
+    });
+    
+    if (!webhookUrlConfigured) {
+        return res.json(testResults);
+    }
+    
+    // Test 2: DNS解決テスト
+    try {
+        const dns = require('dns').promises;
+        const dnsResult = await dns.lookup('discord.com');
+        testResults.tests.push({
+            name: 'DNS Resolution',
+            success: true,
+            details: `discord.com resolves to ${dnsResult.address} (${dnsResult.family})`
+        });
+    } catch (dnsError) {
+        testResults.tests.push({
+            name: 'DNS Resolution',
+            success: false,
+            details: `DNS error: ${dnsError.message}`
+        });
+    }
+    
+    // Test 3: 基本的なHTTP接続テスト
+    try {
+        console.log('🧪 Testing basic HTTP connectivity...');
+        const httpResponse = await axios.get('https://httpbin.org/status/200', {
+            timeout: 5000
+        });
+        testResults.tests.push({
+            name: 'Basic HTTP Connectivity',
+            success: httpResponse.status === 200,
+            details: `httpbin.org responded with ${httpResponse.status}`
+        });
+    } catch (httpError) {
+        testResults.tests.push({
+            name: 'Basic HTTP Connectivity',
+            success: false,
+            details: `HTTP test failed: ${httpError.message}`
+        });
+    }
+    
+    // Test 4: Discord URL構造確認
+    const webhookUrl = process.env.DISCORD_WEBHOOK_URL;
+    const isValidDiscordUrl = webhookUrl.includes('discord.com/api/webhooks/');
+    testResults.tests.push({
+        name: 'Discord URL Format',
+        success: isValidDiscordUrl,
+        details: isValidDiscordUrl ? 
+            `Valid Discord webhook URL format` : 
+            'URL does not match Discord webhook pattern'
+    });
+    
+    // Test 5: シンプルなDiscord webhookテスト
+    if (isValidDiscordUrl) {
+        try {
+            console.log('🧪 Testing Discord webhook with simple message...');
+            const simplePayload = {
+                content: `🧪 Test message from ${testResults.environment} at ${testResults.timestamp}`,
+                username: 'Discord Test Bot'
+            };
+            
+            const discordResponse = await axios.post(webhookUrl, simplePayload, {
+                timeout: 20000, // 20秒タイムアウト
+                headers: {
+                    'Content-Type': 'application/json',
+                    'User-Agent': 'TwitterTool/1.0'
+                }
+            });
+            
+            testResults.tests.push({
+                name: 'Simple Discord Message',
+                success: discordResponse.status === 204,
+                details: `Discord responded with ${discordResponse.status}`
+            });
+        } catch (discordError) {
+            testResults.tests.push({
+                name: 'Simple Discord Message',
+                success: false,
+                details: `Discord error: ${discordError.message} (${discordError.code || 'unknown'})`
+            });
+        }
+        
+        // Test 6: Embedメッセージテスト
+        try {
+            console.log('🧪 Testing Discord embed message...');
+            const embedPayload = {
+                embeds: [{
+                    title: '🧪 Discord Embed Test',
+                    description: `Test from ${testResults.environment}`,
+                    color: 0x00ff00,
+                    timestamp: new Date().toISOString(),
+                    fields: [
+                        { name: 'Environment', value: testResults.environment, inline: true },
+                        { name: 'Timestamp', value: testResults.timestamp, inline: true }
+                    ]
+                }],
+                username: 'Discord Test Bot'
+            };
+            
+            const embedResponse = await axios.post(webhookUrl, embedPayload, {
+                timeout: 20000,
+                headers: {
+                    'Content-Type': 'application/json',
+                    'User-Agent': 'TwitterTool/1.0'
+                }
+            });
+            
+            testResults.tests.push({
+                name: 'Discord Embed Message',
+                success: embedResponse.status === 204,
+                details: `Embed message sent successfully (${embedResponse.status})`
+            });
+        } catch (embedError) {
+            testResults.tests.push({
+                name: 'Discord Embed Message',
+                success: false,
+                details: `Embed error: ${embedError.message} (${embedError.code || 'unknown'})`
+            });
+        }
+    }
+    
+    // Test 7: ネットワーク情報
+    try {
+        const os = require('os');
+        const networkInterfaces = os.networkInterfaces();
+        testResults.tests.push({
+            name: 'Network Information',
+            success: true,
+            details: `Available interfaces: ${Object.keys(networkInterfaces).join(', ')}`
+        });
+    } catch (networkError) {
+        testResults.tests.push({
+            name: 'Network Information',
+            success: false,
+            details: `Network info error: ${networkError.message}`
+        });
+    }
+    
+    const successCount = testResults.tests.filter(t => t.success).length;
+    const totalTests = testResults.tests.length;
+    
+    console.log(`✅ Discord diagnostics completed: ${successCount}/${totalTests} tests passed`);
+    
+    res.json({
+        ...testResults,
+        summary: {
+            passed: successCount,
+            total: totalTests,
+            success: successCount === totalTests
+        }
+    });
+});
 
 // Twitter List タスク実行関数
 async function executeTwitterListTask(task, executionTime) {
@@ -3286,67 +3524,6 @@ async function executeTwitterListTask(task, executionTime) {
     };
 }
 
-// 手動でリストツイート取得（テスト用）
-app.post('/api/lists/:listId/fetch', async (req, res) => {
-    try {
-        const { listId } = req.params;
-        
-        if (!registeredLists.has(listId)) {
-            return res.status(404).json({ error: 'リストが見つかりません' });
-        }
-        
-        const list = registeredLists.get(listId);
-        
-        // TwitterAPI.ioからリストツイートを取得
-        const response = await axios.get(`https://api.twitterapi.io/twitter/list/tweets`, {
-            params: { 
-                list_id: listId,
-                count: 20,
-                since_id: list.lastTweetId || undefined
-            },
-            headers: { 'Authorization': `Bearer ${process.env.TWITTER_API_KEY}` }
-        });
-        
-        const tweets = response.data.data || [];
-        let newTweets = [];
-        
-        if (tweets.length > 0) {
-            // 重複チェック
-            const existingTweets = listTweets.get(listId) || [];
-            const existingIds = new Set(existingTweets.map(t => t.id));
-            
-            newTweets = tweets.filter(tweet => !existingIds.has(tweet.id));
-            
-            if (newTweets.length > 0) {
-                // メモリに保存
-                const updatedTweets = [...newTweets, ...existingTweets];
-                listTweets.set(listId, updatedTweets);
-                
-                // Firestoreに保存
-                await saveListTweetsToFirestore(listId, newTweets);
-                
-                // リスト情報更新
-                list.lastUpdated = new Date().toISOString();
-                list.tweetCount = updatedTweets.length;
-                list.lastTweetId = newTweets[0].id;
-                registeredLists.set(listId, list);
-                
-                updateStats();
-            }
-        }
-        
-        res.json({
-            success: true,
-            newTweets: newTweets.length,
-            totalTweets: list.tweetCount,
-            tweets: newTweets
-        });
-        
-    } catch (error) {
-        console.error('Manual fetch error:', error);
-        res.status(500).json({ error: error.message });
-    }
-});
 
 // リストツイート要約エンドポイント
 app.post('/api/lists/:listId/summarize', async (req, res) => {
