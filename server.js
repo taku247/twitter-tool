@@ -2660,7 +2660,7 @@ const cronExecutor = async (req, res) => {
             
             const lastExecuted = new Date(task.lastExecuted);
             const minutesSince = (now - lastExecuted) / (1000 * 60);
-            const shouldExecute = minutesSince >= task.frequency;
+            const shouldExecute = minutesSince >= (task.frequency - 0.1); // 0.1分（6秒）のマージン
             
             console.log(`  - last executed: ${lastExecuted.toISOString()}`);
             console.log(`  - minutes since: ${minutesSince.toFixed(2)}`);
@@ -2959,7 +2959,7 @@ class DiscordNotifier {
                     } else {
                         console.error('   💡 Client error - not retrying');
                     }
-                } else if (error.code === 'ECONNABORTED' || error.code === 'ETIMEDOUT') {
+                } else if (error.code === 'ECONNABORTED' || error.code === 'ETIMEDOUT' || error.message.includes('timeout')) {
                     console.error('   💡 Request timeout. Will retry with longer timeout');
                     shouldRetry = true;
                 } else if (error.request) {
@@ -3208,6 +3208,101 @@ async function sendFallbackNotification(results) {
 
 // GET エンドポイント（Vercel Cron Jobs用）
 app.get('/api/cron/universal-executor', cronExecutor);
+
+// Cron実行ログ分析用エンドポイント
+app.get('/api/debug/cron-executions', async (req, res) => {
+    try {
+        const limit = parseInt(req.query.limit) || 10;
+        
+        // 最新の実行ログを取得
+        const executionsRef = collection(db, 'cron_executions');
+        const q = query(executionsRef, orderBy('startTime', 'desc'), limit(limit));
+        const querySnapshot = await getDocs(q);
+        
+        const executions = querySnapshot.docs.map(doc => {
+            const data = doc.data();
+            return {
+                id: doc.id,
+                ...data,
+                // タイミング分析用の詳細計算
+                startTime: data.startTime,
+                endTime: data.endTime,
+                processingTimeMs: data.processingTime * 1000,
+                timeDiff: data.endTime ? new Date(data.endTime) - new Date(data.startTime) : null
+            };
+        });
+        
+        res.json({
+            success: true,
+            totalCount: querySnapshot.size,
+            executions: executions,
+            timestamp: new Date().toISOString()
+        });
+        
+    } catch (error) {
+        console.error('❌ Error fetching cron executions:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to fetch cron executions',
+            message: error.message
+        });
+    }
+});
+
+// Cronタスクの詳細タイミング分析用エンドポイント
+app.get('/api/debug/cron-tasks', async (req, res) => {
+    try {
+        // すべてのcron_tasksを取得
+        const tasksRef = collection(db, 'cron_tasks');
+        const tasksSnapshot = await getDocs(tasksRef);
+        
+        const tasks = [];
+        const now = new Date();
+        
+        for (const taskDoc of tasksSnapshot.docs) {
+            const taskData = taskDoc.data();
+            
+            // タイミング計算
+            let timingAnalysis = null;
+            if (taskData.lastExecuted) {
+                const lastExecuted = new Date(taskData.lastExecuted);
+                const minutesSince = (now - lastExecuted) / (1000 * 60);
+                const shouldExecute = minutesSince >= (taskData.frequency - 0.1);
+                
+                timingAnalysis = {
+                    lastExecuted: lastExecuted.toISOString(),
+                    currentTime: now.toISOString(),
+                    minutesSince: parseFloat(minutesSince.toFixed(4)),
+                    frequency: taskData.frequency,
+                    marginAdjustedFrequency: taskData.frequency - 0.1,
+                    shouldExecute: shouldExecute,
+                    nextExecution: new Date(lastExecuted.getTime() + (taskData.frequency * 60 * 1000)).toISOString()
+                };
+            }
+            
+            tasks.push({
+                id: taskDoc.id,
+                ...taskData,
+                timingAnalysis
+            });
+        }
+        
+        res.json({
+            success: true,
+            totalCount: tasksSnapshot.size,
+            tasks: tasks,
+            timestamp: now.toISOString()
+        });
+        
+    } catch (error) {
+        console.error('❌ Error fetching cron tasks:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to fetch cron tasks',
+            message: error.message
+        });
+    }
+});
 
 // Discord webhook直接テスト用エンドポイント
 app.get('/api/discord/test', async (req, res) => {
