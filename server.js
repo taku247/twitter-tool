@@ -2768,19 +2768,140 @@ const cronExecutor = async (req, res) => {
         results.totalProcessingTime = (endTime - startTime) / 1000;
         
         console.log(`✅ [${executionId}] Execution completed: ${results.executedTasks} tasks executed in ${results.totalProcessingTime}s`);
+        
+        // Discord通知を送信（非同期、エラーがあっても処理を続行）
+        sendDiscordNotification(results).catch(error => {
+            console.error('Discord notification failed:', error.message);
+        });
+        
         res.json(results);
         
     } catch (error) {
         console.error(`❌ [${executionId}] Execution failed:`, error);
-        res.status(500).json({ 
+        
+        const errorResults = {
             success: false,
             executionId,
-            error: error.message,
             startTime: startTime.toISOString(),
-            endTime: new Date().toISOString()
+            endTime: new Date().toISOString(),
+            totalProcessingTime: (new Date() - startTime) / 1000,
+            executedTasks: 0,
+            results: [{
+                taskId: 'system',
+                name: 'Cron System',
+                status: 'error',
+                error: error.message,
+                processingTime: (new Date() - startTime) / 1000
+            }]
+        };
+        
+        // エラー時もDiscord通知を送信
+        sendDiscordNotification(errorResults).catch(notifyError => {
+            console.error('Discord notification failed:', notifyError.message);
         });
+        
+        res.status(500).json(errorResults);
     }
 };
+
+// Discord Webhook通知関数
+async function sendDiscordNotification(results) {
+    if (!process.env.DISCORD_WEBHOOK_URL) {
+        console.log('Discord webhook URL not configured, skipping notification');
+        return;
+    }
+    
+    try {
+        const { executedTasks, totalProcessingTime, results: taskResults } = results;
+        
+        // 成功・失敗・新規ツイート数を集計
+        const successTasks = taskResults.filter(task => task.status === 'success');
+        const errorTasks = taskResults.filter(task => task.status === 'error');
+        const totalNewTweets = successTasks.reduce((sum, task) => sum + (task.newItems || 0), 0);
+        
+        // ステータスに応じた色を設定
+        let color;
+        let statusIcon;
+        if (errorTasks.length > 0) {
+            color = 0xff0044; // 赤色（エラーあり）
+            statusIcon = '❌';
+        } else if (totalNewTweets > 0) {
+            color = 0x00ff88; // 緑色（新規ツイートあり）
+            statusIcon = '✅';
+        } else {
+            color = 0x667eea; // 青色（実行完了、新規なし）
+            statusIcon = '🔄';
+        }
+        
+        // Discord embed メッセージを構築
+        const embed = {
+            title: `${statusIcon} Twitter List Scheduler - Cron実行完了`,
+            color: color,
+            timestamp: new Date().toISOString(),
+            fields: [
+                {
+                    name: '📊 実行結果',
+                    value: `**実行タスク数**: ${executedTasks}件\n**処理時間**: ${totalProcessingTime.toFixed(2)}秒`,
+                    inline: true
+                },
+                {
+                    name: '🐦 ツイート収集',
+                    value: `**新規取得**: ${totalNewTweets}件\n**成功/失敗**: ${successTasks.length}/${errorTasks.length}`,
+                    inline: true
+                }
+            ]
+        };
+        
+        // タスク詳細を追加
+        if (taskResults.length > 0) {
+            const taskDetails = taskResults.map(task => {
+                const icon = task.status === 'success' ? '✅' : '❌';
+                const newItems = task.newItems ? ` (${task.newItems}件)` : '';
+                const processingTime = ` ${task.processingTime.toFixed(1)}s`;
+                return `${icon} ${task.name}${newItems}${processingTime}`;
+            }).join('\n');
+            
+            embed.fields.push({
+                name: '📋 タスク詳細',
+                value: taskDetails.length > 1024 ? taskDetails.substring(0, 1020) + '...' : taskDetails,
+                inline: false
+            });
+        }
+        
+        // エラー詳細があれば追加
+        if (errorTasks.length > 0) {
+            const errorDetails = errorTasks.map(task => 
+                `**${task.name}**: ${task.error}`
+            ).join('\n');
+            
+            embed.fields.push({
+                name: '⚠️ エラー詳細',
+                value: errorDetails.length > 1024 ? errorDetails.substring(0, 1020) + '...' : errorDetails,
+                inline: false
+            });
+        }
+        
+        // Discord Webhookに送信
+        const payload = {
+            username: 'Twitter List Scheduler',
+            avatar_url: 'https://cdn.discordapp.com/attachments/1234567890/twitter-icon.png',
+            embeds: [embed]
+        };
+        
+        const response = await axios.post(process.env.DISCORD_WEBHOOK_URL, payload, {
+            headers: { 'Content-Type': 'application/json' }
+        });
+        
+        if (response.status === 204) {
+            console.log('Discord notification sent successfully');
+        } else {
+            console.log(`Discord notification response: ${response.status}`);
+        }
+        
+    } catch (error) {
+        console.error('Failed to send Discord notification:', error.message);
+    }
+}
 
 // GET エンドポイント（Vercel Cron Jobs用）
 app.get('/api/cron/universal-executor', cronExecutor);
