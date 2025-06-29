@@ -3206,12 +3206,17 @@ app.get('/api/discord/test', async (req, res) => {
     // Test 4: Discord URL構造確認
     const webhookUrl = process.env.DISCORD_WEBHOOK_URL;
     const isValidDiscordUrl = webhookUrl.includes('discord.com/api/webhooks/');
+    const webhookIdMatch = webhookUrl.match(/webhooks\/(\d+)\/([a-zA-Z0-9_-]+)/);
+    
+    let urlDetails = isValidDiscordUrl ? 'Valid Discord webhook URL format' : 'URL does not match Discord webhook pattern';
+    if (webhookIdMatch) {
+        urlDetails += ` | ID: ${webhookIdMatch[1].substring(0, 8)}... | Token length: ${webhookIdMatch[2].length}`;
+    }
+    
     testResults.tests.push({
         name: 'Discord URL Format',
         success: isValidDiscordUrl,
-        details: isValidDiscordUrl ? 
-            `Valid Discord webhook URL format` : 
-            'URL does not match Discord webhook pattern'
+        details: urlDetails
     });
     
     // Test 5: シンプルなDiscord webhookテスト
@@ -3237,10 +3242,19 @@ app.get('/api/discord/test', async (req, res) => {
                 details: `Discord responded with ${discordResponse.status}`
             });
         } catch (discordError) {
+            let errorDetails = `Discord error: ${discordError.message} (${discordError.code || 'unknown'})`;
+            
+            if (discordError.response) {
+                errorDetails += ` | Status: ${discordError.response.status}`;
+                if (discordError.response.data) {
+                    errorDetails += ` | Response: ${JSON.stringify(discordError.response.data)}`;
+                }
+            }
+            
             testResults.tests.push({
                 name: 'Simple Discord Message',
                 success: false,
-                details: `Discord error: ${discordError.message} (${discordError.code || 'unknown'})`
+                details: errorDetails
             });
         }
         
@@ -3275,10 +3289,19 @@ app.get('/api/discord/test', async (req, res) => {
                 details: `Embed message sent successfully (${embedResponse.status})`
             });
         } catch (embedError) {
+            let errorDetails = `Embed error: ${embedError.message} (${embedError.code || 'unknown'})`;
+            
+            if (embedError.response) {
+                errorDetails += ` | Status: ${embedError.response.status}`;
+                if (embedError.response.data) {
+                    errorDetails += ` | Response: ${JSON.stringify(embedError.response.data)}`;
+                }
+            }
+            
             testResults.tests.push({
                 name: 'Discord Embed Message',
                 success: false,
-                details: `Embed error: ${embedError.message} (${embedError.code || 'unknown'})`
+                details: errorDetails
             });
         }
     }
