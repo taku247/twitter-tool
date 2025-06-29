@@ -2403,38 +2403,110 @@ app.get('/api/lists', async (req, res) => {
     }
 });
 
-// リスト削除
-app.delete('/api/lists/:listId', (req, res) => {
-    const { listId } = req.params;
-    
-    if (!registeredLists.has(listId)) {
-        return res.status(404).json({ error: 'リストが見つかりません' });
+// リスト削除（Firestore対応）
+app.delete('/api/lists/:listId', async (req, res) => {
+    try {
+        const { listId } = req.params;
+        
+        console.log(`Delete request for listId: ${listId}`);
+        
+        // Firestoreからリスト情報を取得
+        const listDoc = await getDoc(doc(db, 'twitter_lists', listId));
+        if (!listDoc.exists()) {
+            console.log(`List not found in twitter_lists: ${listId}`);
+            return res.status(404).json({ error: 'リストが見つかりません' });
+        }
+        
+        // 1. cron_taskを削除
+        const taskQuery = query(
+            collection(db, 'cron_tasks'),
+            where('config.relatedTableId', '==', listId)
+        );
+        const taskSnapshot = await getDocs(taskQuery);
+        const batch = writeBatch(db);
+        
+        taskSnapshot.forEach(doc => {
+            batch.delete(doc.ref);
+        });
+        
+        // 2. twitter_listを削除
+        batch.delete(doc(db, 'twitter_lists', listId));
+        
+        // 3. 関連するcollected_tweetsを削除
+        const tweetsQuery = query(
+            collection(db, 'collected_tweets'),
+            where('sourceId', '==', listId)
+        );
+        const tweetsSnapshot = await getDocs(tweetsQuery);
+        
+        tweetsSnapshot.forEach(tweetDoc => {
+            batch.delete(tweetDoc.ref);
+        });
+        
+        // 4. 関連するcron_executionsを削除
+        const execQuery = query(
+            collection(db, 'cron_executions'),
+            where('metadata.sourceId', '==', listId)
+        );
+        const execSnapshot = await getDocs(execQuery);
+        
+        execSnapshot.forEach(execDoc => {
+            batch.delete(execDoc.ref);
+        });
+        
+        // バッチ実行
+        await batch.commit();
+        
+        console.log(`List and all related data deleted: ${listId}`);
+        res.json({ success: true });
+        
+    } catch (error) {
+        console.error('Delete error:', error);
+        res.status(500).json({ error: 'サーバーエラーが発生しました' });
     }
-    
-    registeredLists.delete(listId);
-    listTweets.delete(listId);
-    updateStats();
-    
-    console.log(`List deleted: ${listId}`);
-    res.json({ success: true });
 });
 
-// リスト有効/無効切り替え
-app.patch('/api/lists/:listId/toggle', (req, res) => {
-    const { listId } = req.params;
-    const { active } = req.body;
-    
-    if (!registeredLists.has(listId)) {
-        return res.status(404).json({ error: 'リストが見つかりません' });
+// リスト有効/無効切り替え（Firestore対応）
+app.patch('/api/lists/:listId/toggle', async (req, res) => {
+    try {
+        const { listId } = req.params;
+        const { active } = req.body;
+        
+        console.log(`Toggle request for listId: ${listId}, active: ${active}`);
+        
+        // Firestoreからリスト情報を取得
+        const listDoc = await getDoc(doc(db, 'twitter_lists', listId));
+        if (!listDoc.exists()) {
+            console.log(`List not found in twitter_lists: ${listId}`);
+            return res.status(404).json({ error: 'リストが見つかりません' });
+        }
+        
+        // 対応するcron_taskを取得
+        const taskQuery = query(
+            collection(db, 'cron_tasks'),
+            where('config.relatedTableId', '==', listId)
+        );
+        const taskSnapshot = await getDocs(taskQuery);
+        
+        if (taskSnapshot.empty) {
+            console.log(`Cron task not found for listId: ${listId}`);
+            return res.status(404).json({ error: 'タスクが見つかりません' });
+        }
+        
+        // cron_taskのactiveフィールドを更新
+        const taskDoc = taskSnapshot.docs[0];
+        await updateDoc(taskDoc.ref, {
+            active: active,
+            updatedAt: new Date().toISOString()
+        });
+        
+        console.log(`List ${listId} ${active ? 'activated' : 'deactivated'}`);
+        res.json({ success: true });
+        
+    } catch (error) {
+        console.error('Toggle error:', error);
+        res.status(500).json({ error: 'サーバーエラーが発生しました' });
     }
-    
-    const listData = registeredLists.get(listId);
-    listData.active = active;
-    registeredLists.set(listId, listData);
-    updateStats();
-    
-    console.log(`List ${listId} ${active ? 'activated' : 'deactivated'}`);
-    res.json({ success: true });
 });
 
 // 統計情報
