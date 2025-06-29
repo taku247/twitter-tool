@@ -2820,7 +2820,7 @@ const cronExecutor = async (req, res) => {
 class DiscordNotifier {
     constructor(webhookUrl = process.env.DISCORD_WEBHOOK_URL) {
         this.webhookUrl = webhookUrl;
-        this.defaultUsername = 'Twitter Tool Bot';
+        this.defaultUsername = 'Twitter Bot';
         this.defaultAvatarUrl = 'https://cdn.discordapp.com/attachments/1234567890/twitter-icon.png';
     }
     
@@ -3062,7 +3062,7 @@ async function sendDiscordNotification(results) {
         
         // Discord embed メッセージを構築
         const embed = {
-            title: `${statusIcon} Twitter List Scheduler - Cron実行完了`,
+            title: `${statusIcon} Twitter List Bot - Cron実行完了`,
             color: color,
             timestamp: new Date().toISOString(),
             fields: [
@@ -3116,7 +3116,7 @@ async function sendDiscordNotification(results) {
         console.log('🔍 Embed data:', JSON.stringify(embed, null, 2));
         
         const success = await notifier.sendEmbed(embed, {
-            username: 'Twitter List Scheduler',
+            username: 'Twitter List Bot',
             avatarUrl: 'https://cdn.discordapp.com/attachments/1234567890/twitter-icon.png'
         });
         
@@ -3225,7 +3225,7 @@ app.get('/api/discord/test', async (req, res) => {
             console.log('🧪 Testing Discord webhook with simple message...');
             const simplePayload = {
                 content: `🧪 Test message from ${testResults.environment} at ${testResults.timestamp}`,
-                username: 'Discord Test Bot'
+                username: 'Twitter Tool Bot'
             };
             
             const discordResponse = await axios.post(webhookUrl, simplePayload, {
@@ -3272,7 +3272,7 @@ app.get('/api/discord/test', async (req, res) => {
                         { name: 'Timestamp', value: testResults.timestamp, inline: true }
                     ]
                 }],
-                username: 'Discord Test Bot'
+                username: 'Twitter Tool Bot'
             };
             
             const embedResponse = await axios.post(webhookUrl, embedPayload, {
