@@ -1156,6 +1156,19 @@
         let promptTemplates = [];
         let templatesUnsubscribe = null; // Firestoreリアルタイム監視の解除用
 
+        // オーバーレイローディング制御
+        function showOverlayLoading(message = '読み込み中...') {
+            const overlayLoading = document.getElementById('overlayLoading');
+            const loadingText = document.getElementById('loadingText');
+            loadingText.textContent = message;
+            overlayLoading.style.display = 'flex';
+        }
+
+        function hideOverlayLoading() {
+            const overlayLoading = document.getElementById('overlayLoading');
+            overlayLoading.style.display = 'none';
+        }
+
         // 検索フォームの処理
         document.getElementById('searchForm').addEventListener('submit', async function(e) {
             e.preventDefault();
@@ -1163,7 +1176,6 @@
             const baseQuery = document.getElementById('searchQuery').value.trim();
             const sortType = document.getElementById('sortSelect').value;
             const searchBtn = document.getElementById('searchBtn');
-            const searchLoading = document.getElementById('searchLoading');
             
             if (!baseQuery) {
                 alert('検索キーワードを入力してください');
@@ -1173,9 +1185,9 @@
             // フィルターと組み合わせた最終的なクエリを作成
             const fullQuery = buildSearchQuery(baseQuery);
             
-            // UI状態をローディングに変更
+            // UI状態をローディングに変更（オーバーレイ表示）
             searchBtn.disabled = true;
-            searchLoading.style.display = 'block';
+            showOverlayLoading('ツイートを検索中...');
             document.getElementById('analysisSection').style.display = 'none';
             
             try {
@@ -1194,15 +1206,21 @@
                     displayTweets(data.tweets);
                     showAnalysisSection();
                 } else {
+                    // エラー時はオーバーレイを非表示にしてからアラート表示
+                    hideOverlayLoading();
                     alert(`検索エラー: ${data.error || '不明なエラーが発生しました'}`);
+                    return; // finally句でのUI復元をスキップ
                 }
                 
             } catch (error) {
+                // ネットワークエラー時もオーバーレイを非表示にしてからアラート表示
+                hideOverlayLoading();
                 alert(`ネットワークエラー: ${error.message}`);
+                return; // finally句でのUI復元をスキップ
             } finally {
-                // UI状態を元に戻す
+                // 正常完了時のみUI状態を元に戻す
                 searchBtn.disabled = false;
-                searchLoading.style.display = 'none';
+                hideOverlayLoading();
             }
         });
 
@@ -1232,9 +1250,9 @@
                 return;
             }
             
-            // UI状態をローディングに変更
+            // UI状態をローディングに変更（オーバーレイ表示）
             addTweetBtn.disabled = true;
-            addTweetLoading.style.display = 'block';
+            showOverlayLoading('ツイートを取得中...');
             
             try {
                 const response = await fetch('/api/twitter/tweet', {
@@ -1270,15 +1288,25 @@
                     document.getElementById('tweetUrl').value = '';
                     
                 } else {
+                    // エラー時: オーバーレイを非表示にしてからアラート表示
+                    hideOverlayLoading();
                     alert(`ツイート取得エラー: ${data.error?.message || '不明なエラーが発生しました'}`);
+                    // ボタンを有効化してreturn
+                    addTweetBtn.disabled = false;
+                    return;
                 }
                 
             } catch (error) {
+                // ネットワークエラー時: オーバーレイを非表示にしてからアラート表示
+                hideOverlayLoading();
                 alert(`ネットワークエラー: ${error.message}`);
-            } finally {
-                // UI状態を元に戻す
+                // ボタンを有効化してreturn
                 addTweetBtn.disabled = false;
-                addTweetLoading.style.display = 'none';
+                return;
+            } finally {
+                // 正常完了時のみUI状態を元に戻す
+                addTweetBtn.disabled = false;
+                hideOverlayLoading();
             }
         });
 
@@ -1772,8 +1800,6 @@
             const aiPrompt = document.getElementById('aiPrompt').value.trim();
             const selectedTweetsText = getSelectedTweetsText();
             const aiBtnTop = document.getElementById('aiBtnTop');
-            const aiLoading = document.getElementById('aiLoading');
-            const overlayLoading = document.getElementById('overlayLoading');
             const aiResult = document.getElementById('aiResult');
             
             if (!aiPrompt) {
@@ -1788,7 +1814,7 @@
             
             // UI状態をローディングに変更（オーバーレイ表示）
             aiBtnTop.disabled = true;
-            overlayLoading.style.display = 'flex'; // オーバーレイローディングを表示
+            showOverlayLoading('ChatGPTで分析中...');
             aiResult.style.display = 'none';
             
             try {
@@ -1813,21 +1839,29 @@
                     aiResult.textContent = data.response;
                     aiResult.style.display = 'block';
                 } else {
-                    // エラー時の表示
+                    // エラー時: オーバーレイを非表示にしてからエラー表示
+                    hideOverlayLoading();
                     aiResult.className = 'result-section error-section';
                     aiResult.textContent = `❌ 分析エラー\n\n${data.error?.message || '不明なエラーが発生しました'}`;
                     aiResult.style.display = 'block';
+                    // ボタンを有効化してreturn
+                    aiBtnTop.disabled = false;
+                    return;
                 }
                 
             } catch (error) {
-                // ネットワークエラー
+                // ネットワークエラー: オーバーレイを非表示にしてからエラー表示
+                hideOverlayLoading();
                 aiResult.className = 'result-section error-section';
                 aiResult.textContent = `❌ ネットワークエラー\n\n${error.message}`;
                 aiResult.style.display = 'block';
-            } finally {
-                // UI状態を元に戻す
+                // ボタンを有効化してreturn
                 aiBtnTop.disabled = false;
-                overlayLoading.style.display = 'none'; // オーバーレイローディングを非表示
+                return;
+            } finally {
+                // 正常完了時のみUI状態を元に戻す
+                aiBtnTop.disabled = false;
+                hideOverlayLoading();
             }
         }
         
@@ -2469,7 +2503,7 @@
     <!-- 全画面オーバーレイローディング -->
     <div id="overlayLoading" class="overlay-loading">
         <div class="big-spinner"></div>
-        <div class="loading-text">ChatGPTで分析中...</div>
+        <div id="loadingText" class="loading-text">読み込み中...</div>
     </div>
 </body>
 </html>
