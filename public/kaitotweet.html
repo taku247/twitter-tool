@@ -395,18 +395,24 @@
         <!-- 検索セクション -->
         <div class="card">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
-                <h3 style="margin: 0;">🔍 ツイート検索</h3>
-                <button type="button" id="templateManagerBtn" onclick="openTemplateManager()" disabled style="
-                    font-size: 0.85rem; 
-                    padding: 0.5rem 1rem; 
-                    background: rgba(128, 128, 128, 0.1); 
-                    border: 1px solid rgba(128, 128, 128, 0.3); 
-                    color: rgba(128, 128, 128, 0.7);
-                    border-radius: 6px;
-                    cursor: not-allowed;
-                    transition: all 0.3s ease;
-                " title="Firebase初期化中...">📝 テンプレート管理</button>
+                <h3 style="margin: 0; display: flex; align-items: center; cursor: pointer;" onclick="toggleSearchSection()">
+                    <span id="searchToggleIcon" style="margin-right: 0.5rem; transition: transform 0.3s ease;">▼</span>
+                    🔍 ツイート検索
+                </h3>
+                <div style="display: flex; gap: 0.5rem; align-items: center;">
+                    <button type="button" id="templateManagerBtn" onclick="openTemplateManager()" disabled style="
+                        font-size: 0.85rem; 
+                        padding: 0.5rem 1rem; 
+                        background: rgba(128, 128, 128, 0.1); 
+                        border: 1px solid rgba(128, 128, 128, 0.3); 
+                        color: rgba(128, 128, 128, 0.7);
+                        border-radius: 6px;
+                        cursor: not-allowed;
+                        transition: all 0.3s ease;
+                    " title="Firebase初期化中...">📝 テンプレート管理</button>
+                </div>
             </div>
+            <div id="searchContent" style="transition: all 0.3s ease;">
             <form id="searchForm">
                 <div class="form-group">
                     <label for="searchQuery">検索キーワード</label>
@@ -599,6 +605,7 @@
             <div id="searchLoading" class="loading">
                 <div class="spinner"></div>
                 <p>ツイートを検索中...</p>
+            </div>
             </div>
         </div>
         
@@ -1171,6 +1178,34 @@
             overlayLoading.style.display = 'none';
         }
 
+        // 検索セクションの折りたたみ機能
+        function toggleSearchSection() {
+            const searchContent = document.getElementById('searchContent');
+            const toggleIcon = document.getElementById('searchToggleIcon');
+            
+            if (searchContent.style.display === 'none') {
+                // 展開
+                searchContent.style.display = 'block';
+                toggleIcon.style.transform = 'rotate(0deg)';
+                toggleIcon.textContent = '▼';
+            } else {
+                // 折りたたみ
+                searchContent.style.display = 'none';
+                toggleIcon.style.transform = 'rotate(-90deg)';
+                toggleIcon.textContent = '▶';
+            }
+        }
+
+        // 検索完了後に検索セクションを閉じる
+        function collapseSearchSection() {
+            const searchContent = document.getElementById('searchContent');
+            const toggleIcon = document.getElementById('searchToggleIcon');
+            
+            searchContent.style.display = 'none';
+            toggleIcon.style.transform = 'rotate(-90deg)';
+            toggleIcon.textContent = '▶';
+        }
+
         // 検索フォームの処理
         document.getElementById('searchForm').addEventListener('submit', async function(e) {
             e.preventDefault();
@@ -1207,6 +1242,8 @@
                     searchResults = data;
                     displayTweets(data.tweets);
                     showAnalysisSection();
+                    // 検索成功後に検索セクションを折りたたむ
+                    collapseSearchSection();
                 } else {
                     // エラー時はオーバーレイを非表示にしてからアラート表示
                     hideOverlayLoading();
