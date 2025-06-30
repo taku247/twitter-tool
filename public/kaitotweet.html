@@ -1514,10 +1514,13 @@
                 allFilters.push(`until:${untilFormatted}`);
             }
             
+            // 本文のみ検索のためのクエリ調整（ユーザー名マッチを除外）
+            const finalQuery = `"${baseQuery}" OR @a`;
+            
             if (allFilters.length === 0) {
-                return baseQuery;
+                return finalQuery;
             }
-            return baseQuery + ' ' + allFilters.join(' ');
+            return finalQuery + ' ' + allFilters.join(' ');
         }
         
         // 日時をTwitter検索形式に変換（ブラウザ時間→UTC変換）
