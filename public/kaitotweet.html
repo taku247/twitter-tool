@@ -209,6 +209,49 @@
             to { transform: rotate(360deg); }
         }
         
+        /* 全画面オーバーレイローディング */
+        .overlay-loading {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            backdrop-filter: blur(5px);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+            flex-direction: column;
+        }
+        
+        .overlay-loading .big-spinner {
+            border: 4px solid rgba(255, 255, 255, 0.1);
+            border-top: 4px solid #00d4ff;
+            border-radius: 50%;
+            width: 60px;
+            height: 60px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 1.5rem auto;
+        }
+        
+        .overlay-loading .loading-text {
+            color: #ffffff;
+            font-size: 1.2rem;
+            font-weight: 600;
+            text-align: center;
+            animation: pulse 2s ease-in-out infinite alternate;
+        }
+        
+        @keyframes pulse {
+            from {
+                opacity: 0.6;
+            }
+            to {
+                opacity: 1;
+            }
+        }
+        
         .analysis-section {
             display: none;
         }
@@ -1730,6 +1773,7 @@
             const selectedTweetsText = getSelectedTweetsText();
             const aiBtnTop = document.getElementById('aiBtnTop');
             const aiLoading = document.getElementById('aiLoading');
+            const overlayLoading = document.getElementById('overlayLoading');
             const aiResult = document.getElementById('aiResult');
             
             if (!aiPrompt) {
@@ -1742,9 +1786,9 @@
                 return;
             }
             
-            // UI状態をローディングに変更
+            // UI状態をローディングに変更（オーバーレイ表示）
             aiBtnTop.disabled = true;
-            aiLoading.style.display = 'block';
+            overlayLoading.style.display = 'flex'; // オーバーレイローディングを表示
             aiResult.style.display = 'none';
             
             try {
@@ -1783,7 +1827,7 @@
             } finally {
                 // UI状態を元に戻す
                 aiBtnTop.disabled = false;
-                aiLoading.style.display = 'none';
+                overlayLoading.style.display = 'none'; // オーバーレイローディングを非表示
             }
         }
         
@@ -2421,5 +2465,11 @@
             }
         }
     </script>
+
+    <!-- 全画面オーバーレイローディング -->
+    <div id="overlayLoading" class="overlay-loading">
+        <div class="big-spinner"></div>
+        <div class="loading-text">ChatGPTで分析中...</div>
+    </div>
 </body>
 </html>
