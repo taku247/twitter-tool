@@ -471,7 +471,7 @@
                                 transform: translateY(-2px);
                                 box-shadow: 0 2px 8px rgba(0, 212, 255, 0.3);
                             ">🚫 RT除外</button>
-                            <button type="button" class="quick-filter-btn active" id="filter-no-reply" onclick="toggleFilter('exclude:replies', '💬 コメント除外')" style="
+                            <button type="button" class="quick-filter-btn active" id="filter-no-reply" onclick="toggleFilter('-filter:replies', '💬 コメント除外')" style="
                                 background: rgba(0, 212, 255, 0.2); 
                                 border: 1px solid rgba(0, 212, 255, 0.5); 
                                 color: #00d4ff; 
@@ -1174,7 +1174,7 @@
     <script>
         let searchResults = null;
         let manualTweets = [];
-        let selectedFilters = ['-is:retweet', 'exclude:replies'];
+        let selectedFilters = ['-is:retweet', '-filter:replies'];
         let promptTemplates = [];
         let templatesUnsubscribe = null; // Firestoreリアルタイム監視の解除用
 
