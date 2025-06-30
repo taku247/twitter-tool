@@ -2632,18 +2632,39 @@ const cronExecutor = async (req, res) => {
         
         console.log(`🔄 [${executionId}] Starting universal cron executor`);
         
-        // 実行対象タスクを取得
-        const tasksSnapshot = await getDocs(
-            query(collection(db, 'cron_tasks'), 
-                  where('active', '==', true))
-        );
-        
-        const allTasks = [];
-        tasksSnapshot.forEach(doc => {
-            allTasks.push({id: doc.id, ...doc.data()});
-        });
-        
-        console.log(`Found ${allTasks.length} active tasks`);
+        // 実行対象タスクを取得（Firestore接続エラー対策付き）
+        let allTasks = [];
+        try {
+            console.log('🔍 Connecting to Firestore to fetch active tasks...');
+            const tasksSnapshot = await getDocs(
+                query(collection(db, 'cron_tasks'), 
+                      where('active', '==', true))
+            );
+            
+            tasksSnapshot.forEach(doc => {
+                allTasks.push({id: doc.id, ...doc.data()});
+            });
+            
+            console.log(`✅ Firestore connection successful. Found ${allTasks.length} active tasks`);
+            
+            if (allTasks.length === 0) {
+                console.log('ℹ️  No active tasks found in cron_tasks collection');
+                console.log('   - Check if tasks exist with active: true');
+                console.log('   - Verify cron_tasks collection exists');
+            }
+            
+        } catch (firestoreError) {
+            console.error('❌ Firestore connection failed:', firestoreError.message);
+            console.error('   Error code:', firestoreError.code);
+            console.error('   Error details:', firestoreError);
+            
+            // Firestoreエラーの場合は早期リターン
+            return res.status(500).json({ 
+                error: 'Firestore connection failed',
+                details: firestoreError.message,
+                executionId: executionId
+            });
+        }
         
         // 頻度チェックで実行対象を決定
         const now = new Date();
@@ -2885,8 +2906,8 @@ class DiscordNotifier {
             return false;
         }
         
-        const maxRetries = 20;
-        const baseDelay = 1000; // 1秒
+        const maxRetries = 8; // 20→8に削減
+        const baseDelay = 2000; // 1秒→2秒に延長
         
         for (let attempt = 1; attempt <= maxRetries; attempt++) {
             try {
@@ -2901,8 +2922,16 @@ class DiscordNotifier {
                 console.log('   Embed count:', Array.isArray(embed) ? embed.length : 1);
                 console.log('🔍 Payload size:', JSON.stringify(payload).length, 'characters');
                 
-                const timeoutMs = 60000; // 固定60秒（Cron環境対応）
-                console.log(`⏱️  Timeout: ${timeoutMs/1000}s`);
+                // 段階的にタイムアウトを調整: 初回は短く、リトライ時に延長
+                let timeoutMs;
+                if (attempt <= 3) {
+                    timeoutMs = 15000; // 15秒
+                } else if (attempt <= 10) {
+                    timeoutMs = 30000; // 30秒
+                } else {
+                    timeoutMs = 45000; // 45秒
+                }
+                console.log(`⏱️  Timeout: ${timeoutMs/1000}s (attempt ${attempt})`);
                 
                 const response = await axios.post(this.webhookUrl, payload, {
                     timeout: timeoutMs,
@@ -2928,12 +2957,12 @@ class DiscordNotifier {
                 let retryDelay;
                 
                 // リトライ戦略: 段階的に待機時間を調整
-                if (attempt <= 3) {
-                    retryDelay = baseDelay * attempt; // 1s, 2s, 3s
-                } else if (attempt <= 6) {
-                    retryDelay = 5000; // 5秒固定
+                if (attempt <= 2) {
+                    retryDelay = baseDelay; // 2秒固定
+                } else if (attempt <= 5) {
+                    retryDelay = baseDelay * 2; // 4秒固定
                 } else {
-                    retryDelay = 10000; // 10秒固定
+                    retryDelay = baseDelay * 3; // 6秒固定
                 }
                 
                 if (error.response) {
