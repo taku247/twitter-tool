@@ -3101,6 +3101,17 @@ async function sendDiscordNotification(results) {
         const errorTasks = taskResults.filter(task => task.status === 'error');
         const totalNewTweets = successTasks.reduce((sum, task) => sum + (task.newItems || 0), 0);
         
+        // 全タスクから最新のツイートタイムスタンプを取得
+        let globalLatestTweetTimestamp = null;
+        for (const task of successTasks) {
+            if (task.latestTweetTimestamp) {
+                const tweetDate = new Date(task.latestTweetTimestamp);
+                if (!globalLatestTweetTimestamp || tweetDate > new Date(globalLatestTweetTimestamp)) {
+                    globalLatestTweetTimestamp = task.latestTweetTimestamp;
+                }
+            }
+        }
+        
         // ステータスに応じた色を設定
         let color;
         let statusIcon;
@@ -3115,6 +3126,14 @@ async function sendDiscordNotification(results) {
             statusIcon = '🔄';
         }
         
+        // 最新ツイート日時を日本時間でフォーマット
+        let latestTweetInfo = '取得なし';
+        if (globalLatestTweetTimestamp) {
+            const tweetDate = new Date(globalLatestTweetTimestamp);
+            const jstDate = new Date(tweetDate.getTime() + 9 * 60 * 60 * 1000); // JST変換
+            latestTweetInfo = jstDate.toISOString().replace('T', ' ').replace('.000Z', ' JST');
+        }
+
         // Discord embed メッセージを構築
         const embed = {
             title: `${statusIcon} Twitter List Bot - Cron実行完了`,
@@ -3129,6 +3148,11 @@ async function sendDiscordNotification(results) {
                 {
                     name: '🐦 ツイート収集',
                     value: `**新規取得**: ${totalNewTweets}件\n**成功/失敗**: ${successTasks.length}/${errorTasks.length}`,
+                    inline: true
+                },
+                {
+                    name: '🕒 最新ツイート',
+                    value: latestTweetInfo,
                     inline: true
                 }
             ]
@@ -3748,12 +3772,25 @@ async function executeTwitterListTask(task, executionTime) {
     
     console.log(`List "${listData.name}": ${uniqueTweets.length} new tweets collected`);
     
+    // 最新ツイートのタイムスタンプを取得
+    let latestTweetTimestamp = null;
+    if (uniqueTweets.length > 0) {
+        // created_atでソートして最新のツイートを取得
+        const sortedByDate = uniqueTweets.sort((a, b) => {
+            const dateA = new Date(a.dateValue || a.created_at || a.createdAt);
+            const dateB = new Date(b.dateValue || b.created_at || b.createdAt);
+            return dateB - dateA;
+        });
+        latestTweetTimestamp = sortedByDate[0].dateValue || sortedByDate[0].created_at || sortedByDate[0].createdAt;
+    }
+
     return { 
         newTweets: uniqueTweets.length,
         totalFetched: tweets.length,
         pagesRetrieved: page,
         duplicatesSkipped: newTweets.length - uniqueTweets.length,
-        alreadyInDB: tweets.length - newTweets.length
+        alreadyInDB: tweets.length - newTweets.length,
+        latestTweetTimestamp: latestTweetTimestamp
     };
 }
 
