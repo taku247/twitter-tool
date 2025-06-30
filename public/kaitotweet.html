@@ -1514,8 +1514,8 @@
                 allFilters.push(`until:${untilFormatted}`);
             }
             
-            // 本文のみ検索のためのクエリ調整（ユーザー名マッチを除外）
-            const finalQuery = `${baseQuery} ＯＲ @zzzzzzzzzzzzzzzzzzzzzzz`;
+            // ベースクエリをそのまま使用
+            const finalQuery = baseQuery;
             
             if (allFilters.length === 0) {
                 return finalQuery;
