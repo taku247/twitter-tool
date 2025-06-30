@@ -349,7 +349,19 @@
         
         <!-- 検索セクション -->
         <div class="card">
-            <h3>🔍 ツイート検索</h3>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                <h3 style="margin: 0;">🔍 ツイート検索</h3>
+                <button type="button" id="templateManagerBtn" onclick="openTemplateManager()" disabled style="
+                    font-size: 0.85rem; 
+                    padding: 0.5rem 1rem; 
+                    background: rgba(128, 128, 128, 0.1); 
+                    border: 1px solid rgba(128, 128, 128, 0.3); 
+                    color: rgba(128, 128, 128, 0.7);
+                    border-radius: 6px;
+                    cursor: not-allowed;
+                    transition: all 0.3s ease;
+                " title="Firebase初期化中...">📝 テンプレート管理</button>
+            </div>
             <form id="searchForm">
                 <div class="form-group">
                     <label for="searchQuery">検索キーワード</label>
@@ -580,15 +592,6 @@
                                 ">
                                     <option value="">テンプレート選択</option>
                                 </select>
-                                <button type="button" onclick="openTemplateManager()" style="
-                                    font-size: 0.8rem; 
-                                    padding: 0.4rem 0.8rem; 
-                                    background: rgba(0, 212, 255, 0.1); 
-                                    border: 1px solid rgba(0, 212, 255, 0.3); 
-                                    color: #00d4ff;
-                                    transform: none;
-                                    box-shadow: none;
-                                ">📝 管理</button>
                             </div>
                         </div>
                         <textarea id="aiPrompt" placeholder="例: 以下のツイートを分析して、主要なトレンドと感情を教えてください。"></textarea>
@@ -812,14 +815,61 @@
                 
                 // Initialize Firebase
                 app = initializeApp(firebaseConfig);
-                // Use named database 'twitter-tool' instead of default
-                db = getFirestore(app, 'twitter-tool');
+                // Use default database to match server configuration
+                db = getFirestore(app);
+                
+                // グローバルスコープに公開
+                window.firebaseApp = app;
+                window.firestoreDb = db;
                 
                 return true;
             } catch (error) {
                 console.error('Firebase initialization failed:', error);
                 alert('Firebase設定の読み込みに失敗しました。管理者にお問い合わせください。');
                 return false;
+            }
+        }
+        
+        // 関数をグローバルスコープに公開
+        window.initializeFirebase = initializeFirebase;
+        
+        // Firebase変数をグローバルスコープに公開
+        window.firebaseApp = null;
+        window.firestoreDb = null;
+        
+        // 初期化処理を直接実行
+        console.log('🔍 Module script: 初期化処理開始');
+        
+        // DOMが読み込まれたら自動的に初期化を開始
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', async () => {
+                console.log('🔍 Module script: DOMContentLoaded triggered');
+                await performInitialization();
+            });
+        } else {
+            // DOMが既に読み込まれている場合は即座に実行
+            console.log('🔍 Module script: DOM already loaded, initializing immediately');
+            await performInitialization();
+        }
+        
+        async function performInitialization() {
+            try {
+                console.log('🔍 Module script: Firebase初期化開始');
+                const firebaseReady = await initializeFirebase();
+                console.log('🔍 Module script: Firebase初期化結果:', firebaseReady);
+                
+                if (firebaseReady) {
+                    console.log('✅ Module script: Firebase初期化成功');
+                    // FirebaseTemplatesServiceをグローバルスコープに公開
+                    window.FirestoreTemplatesService = FirestoreTemplatesService;
+                    console.log('✅ Module script: FirestoreTemplatesService をグローバルスコープに公開');
+                } else {
+                    console.error('❌ Module script: Firebase初期化失敗');
+                    // 初期化失敗時でもLocalStorageモードで動作するようにサービスを公開
+                    window.FirestoreTemplatesService = null;
+                }
+            } catch (error) {
+                console.error('❌ Module script: 初期化エラー:', error);
             }
         }
 
@@ -903,8 +953,16 @@
 
             static async getAllTemplates() {
                 try {
+                    console.log('🔍 getAllTemplates: 開始');
+                    console.log('🔍 コレクション名:', this.COLLECTION_NAME);
+                    console.log('🔍 Firestore db オブジェクト:', db);
+                    
                     const q = query(collection(db, this.COLLECTION_NAME), orderBy('createdAt', 'desc'));
+                    console.log('🔍 クエリ作成完了');
+                    
                     const querySnapshot = await getDocs(q);
+                    console.log('🔍 クエリ実行完了, ドキュメント数:', querySnapshot.size);
+                    
                     const templates = [];
                     
                     querySnapshot.forEach((doc) => {
@@ -1772,11 +1830,37 @@
 
         // ページ読み込み時にテンプレートを初期化
         document.addEventListener('DOMContentLoaded', async function() {
-            // Firebase初期化
-            const firebaseReady = await initializeFirebase();
-            if (firebaseReady) {
-                await initializeTemplates();
+            console.log('🔍 Regular script: DOMContentLoaded開始');
+            
+            // Firebase初期化を待機
+            let attempts = 0;
+            const maxAttempts = 30; // 3秒間待機（100ms × 30回）
+            
+            while (attempts < maxAttempts) {
+                console.log(`🔍 Regular script: Firebase確認 (${attempts + 1}/${maxAttempts})`);
+                
+                if (typeof window.FirestoreTemplatesService !== 'undefined') {
+                    console.log('✅ Regular script: Firebase初期化確認完了');
+                    
+                    try {
+                        console.log('🔍 Regular script: テンプレート初期化開始');
+                        await initializeTemplates();
+                        console.log('✅ Regular script: テンプレート初期化完了');
+                        return;
+                    } catch (error) {
+                        console.error('❌ Regular script: テンプレート初期化エラー:', error);
+                        // エラーでもローカルストレージにフォールバック
+                        loadTemplatesFromLocalStorage();
+                        return;
+                    }
+                }
+                
+                attempts++;
+                await new Promise(resolve => setTimeout(resolve, 100));
             }
+            
+            console.warn('⚠️ Regular script: Firebase初期化タイムアウト、ローカルストレージモードに切り替え');
+            loadTemplatesFromLocalStorage();
         });
 
         // Firebase初期化を待機
@@ -1796,32 +1880,73 @@
         // Firestoreテンプレート初期化
         async function initializeTemplates() {
             try {
+                console.log('🔍 テンプレート初期化開始...');
+                
                 // 初期デフォルトテンプレートを作成（必要に応じて）
+                console.log('🔍 デフォルトテンプレート初期化中...');
                 await window.FirestoreTemplatesService.initializeDefaultTemplates();
+                console.log('🔍 デフォルトテンプレート初期化完了');
                 
                 // テンプレートをFirestoreから読み込み
+                console.log('🔍 Firestoreからテンプレート読み込み中...');
                 await loadTemplatesFromFirestore();
+                console.log('🔍 Firestoreからのテンプレート読み込み完了');
                 
                 // リアルタイム監視を開始
+                console.log('🔍 リアルタイム監視開始...');
                 startTemplateSubscription();
+                console.log('🔍 リアルタイム監視開始完了');
                 
                 console.log('✅ テンプレート初期化完了');
+                
+                // テンプレート管理ボタンを有効化
+                enableTemplateManagerButton();
             } catch (error) {
                 console.error('❌ テンプレート初期化失敗:', error);
                 // Firestoreエラー時はローカルストレージにフォールバック
                 loadTemplatesFromLocalStorage();
+                
+                // エラー時でもボタンを有効化（基本機能は利用可能）
+                enableTemplateManagerButton();
+            }
+        }
+        
+        // テンプレート管理ボタンを有効化
+        function enableTemplateManagerButton() {
+            const btn = document.getElementById('templateManagerBtn');
+            if (btn) {
+                btn.disabled = false;
+                btn.title = 'テンプレートを管理';
+                btn.style.background = 'rgba(0, 212, 255, 0.1)';
+                btn.style.border = '1px solid rgba(0, 212, 255, 0.3)';
+                btn.style.color = '#00d4ff';
+                btn.style.cursor = 'pointer';
+                
+                // ホバー効果を再設定
+                btn.onmouseover = function() { this.style.background = 'rgba(0, 212, 255, 0.2)'; };
+                btn.onmouseout = function() { this.style.background = 'rgba(0, 212, 255, 0.1)'; };
+                
+                console.log('✅ テンプレート管理ボタンを有効化しました');
             }
         }
 
         // Firestoreからテンプレートを読み込み
         async function loadTemplatesFromFirestore() {
             try {
+                console.log('🔍 Firebase接続状態:', app ? '接続済み' : '未接続');
+                console.log('🔍 Firestore接続状態:', db ? '接続済み' : '未接続');
+                console.log('🔍 テンプレート読み込み開始...');
+                
                 promptTemplates = await window.FirestoreTemplatesService.getAllTemplates();
+                console.log('🔥 Firestore: テンプレート読み込み完了', promptTemplates.length + '件');
+                console.log('🔍 読み込まれたテンプレート:', promptTemplates);
+                
                 updateTemplateSelect();
                 await loadDefaultTemplate();
-                console.log('🔥 Firestore: テンプレート読み込み完了', promptTemplates.length + '件');
             } catch (error) {
                 console.error('❌ Firestoreテンプレート読み込み失敗:', error);
+                console.error('❌ エラー詳細:', error.message);
+                console.error('❌ エラーコード:', error.code);
                 throw error;
             }
         }
@@ -1886,6 +2011,10 @@
             }
             updateTemplateSelect();
             loadDefaultTemplate();
+            
+            // ローカルストレージモードでもボタンを有効化
+            enableTemplateManagerButton();
+            console.log('📱 ローカルストレージテンプレート読み込み完了');
         }
 
         // ローカルストレージにテンプレートを保存（フォールバック用）
@@ -1997,6 +2126,21 @@
 
         // テンプレート管理モーダルを開く
         function openTemplateManager() {
+            console.log('🔍 Template manager opening...');
+            console.log('🔍 Current promptTemplates:', promptTemplates);
+            console.log('🔍 promptTemplates length:', promptTemplates.length);
+            console.log('🔍 Firebase initialized:', window.firebaseApp ? 'Yes' : 'No');
+            console.log('🔍 Firestore initialized:', window.firestoreDb ? 'Yes' : 'No');
+            console.log('🔍 FirestoreTemplatesService available:', typeof window.FirestoreTemplatesService !== 'undefined' ? 'Yes' : 'No');
+            
+            // 初期化チェック - Firebase か LocalStorage のいずれかで動作
+            if (typeof window.FirestoreTemplatesService === 'undefined' && promptTemplates.length === 0) {
+                console.warn('⚠️ 初期化中または初期化失敗 - 再試行中...');
+                alert('システム初期化中です。しばらくお待ちください。');
+                return;
+            }
+            
+            console.log('✅ テンプレート管理を開始');
             document.getElementById('templateModal').style.display = 'block';
             updateTemplateList();
         }
@@ -2067,12 +2211,20 @@
 
         // テンプレート一覧を更新
         function updateTemplateList() {
+            console.log('🔍 updateTemplateList called');
+            console.log('🔍 promptTemplates in updateTemplateList:', promptTemplates);
+            console.log('🔍 promptTemplates.length:', promptTemplates.length);
+            
             const list = document.getElementById('templateList');
+            console.log('🔍 templateList element found:', list ? 'Yes' : 'No');
             
             if (promptTemplates.length === 0) {
+                console.log('🔍 No templates found, showing empty message');
                 list.innerHTML = '<p style="color: rgba(255, 255, 255, 0.6); text-align: center;">保存されたテンプレートがありません</p>';
                 return;
             }
+            
+            console.log('🔍 Rendering', promptTemplates.length, 'templates');
             
             const templatesHtml = promptTemplates.map(template => `
                 <div style="
