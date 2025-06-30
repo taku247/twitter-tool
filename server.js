@@ -3282,6 +3282,40 @@ app.get('/api/config/firebase', (req, res) => {
     }
 });
 
+// Debug: Check Firestore templates
+app.get('/api/debug/templates', async (req, res) => {
+    try {
+        console.log('🔍 Checking Firestore templates...');
+        
+        // Check prompt-templates collection
+        const templatesRef = collection(db, 'prompt-templates');
+        const templatesSnapshot = await getDocs(templatesRef);
+        
+        const templates = [];
+        templatesSnapshot.forEach((doc) => {
+            templates.push({
+                id: doc.id,
+                ...doc.data()
+            });
+        });
+        
+        console.log(`📋 Found ${templates.length} templates in Firestore`);
+        
+        res.json({
+            success: true,
+            count: templates.length,
+            templates: templates,
+            timestamp: new Date().toISOString()
+        });
+    } catch (error) {
+        console.error('❌ Error checking templates:', error);
+        res.status(500).json({ 
+            error: 'Failed to check templates',
+            details: error.message 
+        });
+    }
+});
+
 // Cron実行ログ分析用エンドポイント
 app.get('/api/debug/cron-executions', async (req, res) => {
     try {

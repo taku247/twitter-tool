@@ -43,7 +43,13 @@
       "Bash(vercel:*)",
       "Bash(node:*)",
       "Bash(echo $TZ)",
-      "Bash(find:*)"
+      "Bash(find:*)",
+      "Bash(cat:*)",
+      "Bash(npm run check:db:*)",
+      "Bash(jq:*)",
+      "Bash(timeout 5m npm run check:db)",
+      "Bash(mv:*)",
+      "mcp__ide__executeCode"
     ],
     "deny": []
   }

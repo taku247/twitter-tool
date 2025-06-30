@@ -429,8 +429,8 @@
                 
                 // Initialize Firebase
                 app = initializeApp(firebaseConfig);
-                // Use named database 'twitter-tool' instead of default
-                db = getFirestore(app, 'twitter-tool');
+                // Use default database to match server configuration
+                db = getFirestore(app);
                 
                 return true;
             } catch (error) {
