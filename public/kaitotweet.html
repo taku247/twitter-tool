@@ -830,49 +830,6 @@
             }
         }
         
-        // 関数をグローバルスコープに公開
-        window.initializeFirebase = initializeFirebase;
-        
-        // Firebase変数をグローバルスコープに公開
-        window.firebaseApp = null;
-        window.firestoreDb = null;
-        
-        // 初期化処理を直接実行
-        console.log('🔍 Module script: 初期化処理開始');
-        
-        // DOMが読み込まれたら自動的に初期化を開始
-        if (document.readyState === 'loading') {
-            document.addEventListener('DOMContentLoaded', async () => {
-                console.log('🔍 Module script: DOMContentLoaded triggered');
-                await performInitialization();
-            });
-        } else {
-            // DOMが既に読み込まれている場合は即座に実行
-            console.log('🔍 Module script: DOM already loaded, initializing immediately');
-            await performInitialization();
-        }
-        
-        async function performInitialization() {
-            try {
-                console.log('🔍 Module script: Firebase初期化開始');
-                const firebaseReady = await initializeFirebase();
-                console.log('🔍 Module script: Firebase初期化結果:', firebaseReady);
-                
-                if (firebaseReady) {
-                    console.log('✅ Module script: Firebase初期化成功');
-                    // FirebaseTemplatesServiceをグローバルスコープに公開
-                    window.FirestoreTemplatesService = FirestoreTemplatesService;
-                    console.log('✅ Module script: FirestoreTemplatesService をグローバルスコープに公開');
-                } else {
-                    console.error('❌ Module script: Firebase初期化失敗');
-                    // 初期化失敗時でもLocalStorageモードで動作するようにサービスを公開
-                    window.FirestoreTemplatesService = null;
-                }
-            } catch (error) {
-                console.error('❌ Module script: 初期化エラー:', error);
-            }
-        }
-
         // Firestore Templates Service
         class FirestoreTemplatesService {
             static COLLECTION_NAME = 'prompt-templates';
@@ -1008,14 +965,18 @@
             static async setDefaultTemplate(templateId) {
                 try {
                     const allTemplates = await this.getAllTemplates();
-                    const updatePromises = allTemplates
-                        .filter(template => template.isDefault)
-                        .map(template => this.updateTemplate(template.id, { isDefault: false }));
                     
-                    await Promise.all(updatePromises);
+                    // 既存のデフォルトを全て解除
+                    for (const template of allTemplates) {
+                        if (template.isDefault) {
+                            await this.updateTemplate(template.id, { isDefault: false });
+                        }
+                    }
+                    
+                    // 新しいデフォルトを設定
                     await this.updateTemplate(templateId, { isDefault: true });
                     
-                    console.log('🔥 Firestore: デフォルトテンプレート設定成功', templateId);
+                    console.log('🔥 Firestore: デフォルトテンプレート設定完了', templateId);
                 } catch (error) {
                     console.error('❌ Firestore: デフォルトテンプレート設定失敗', error);
                     throw error;
@@ -1025,7 +986,6 @@
             static subscribeToTemplates(callback) {
                 try {
                     const q = query(collection(db, this.COLLECTION_NAME), orderBy('createdAt', 'desc'));
-                    
                     return onSnapshot(q, (querySnapshot) => {
                         const templates = [];
                         querySnapshot.forEach((doc) => {
@@ -1034,13 +994,11 @@
                                 ...doc.data()
                             });
                         });
-                        
-                        console.log('🔥 Firestore: テンプレートリアルタイム更新', templates.length + '件');
                         callback(templates);
                     });
                 } catch (error) {
-                    console.error('❌ Firestore: リアルタイム監視失敗', error);
-                    throw error;
+                    console.error('❌ Firestore: リアルタイム監視エラー', error);
+                    return () => {}; // 空の関数を返す
                 }
             }
 
@@ -1051,8 +1009,6 @@
                         console.log('🔥 Firestore: 既存テンプレートあり、初期化スキップ');
                         return;
                     }
-
-                    console.log('🔥 Firestore: 初期テンプレートを作成中...');
 
                     const defaultTemplates = [
                         {
@@ -1081,41 +1037,73 @@
                         }
                     ];
 
-                    const promises = defaultTemplates.map(template => this.addTemplate(template));
-                    await Promise.all(promises);
+                    for (const template of defaultTemplates) {
+                        await this.addTemplate(template);
+                    }
 
-                    console.log('✅ Firestore: 初期テンプレート作成完了');
+                    console.log('🔥 Firestore: デフォルトテンプレート初期化完了');
                 } catch (error) {
-                    console.error('❌ Firestore: 初期テンプレート作成失敗', error);
+                    console.error('❌ Firestore: デフォルトテンプレート初期化失敗', error);
                     throw error;
                 }
             }
 
             static async checkDuplicateName(name, excludeId = null) {
                 try {
-                    const q = query(
-                        collection(db, this.COLLECTION_NAME), 
-                        where('name', '==', name)
+                    const templates = await this.getAllTemplates();
+                    return templates.some(template => 
+                        template.name === name && template.id !== excludeId
                     );
-                    const querySnapshot = await getDocs(q);
-                    
-                    if (excludeId) {
-                        return querySnapshot.docs.some(doc => doc.id !== excludeId);
-                    }
-                    
-                    return !querySnapshot.empty;
                 } catch (error) {
                     console.error('❌ Firestore: 重複チェック失敗', error);
                     return false;
                 }
             }
         }
-
-        // グローバルに公開
-        window.firebaseAuth = { db };
-        window.FirestoreTemplatesService = FirestoreTemplatesService;
         
-        console.log('🔥 Firebase initialized successfully for Twitter Analytics Tool');
+        // 関数をグローバルスコープに公開
+        window.initializeFirebase = initializeFirebase;
+        
+        // Firebase変数をグローバルスコープに公開
+        window.firebaseApp = null;
+        window.firestoreDb = null;
+        
+        // 初期化処理を直接実行
+        console.log('🔍 Module script: 初期化処理開始');
+        
+        // DOMが読み込まれたら自動的に初期化を開始
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', async () => {
+                console.log('🔍 Module script: DOMContentLoaded triggered');
+                await performInitialization();
+            });
+        } else {
+            // DOMが既に読み込まれている場合は即座に実行
+            console.log('🔍 Module script: DOM already loaded, initializing immediately');
+            await performInitialization();
+        }
+        
+        async function performInitialization() {
+            try {
+                console.log('🔍 Module script: Firebase初期化開始');
+                const firebaseReady = await initializeFirebase();
+                console.log('🔍 Module script: Firebase初期化結果:', firebaseReady);
+                
+                if (firebaseReady) {
+                    console.log('✅ Module script: Firebase初期化成功');
+                    // FirebaseTemplatesServiceをグローバルスコープに公開
+                    window.FirestoreTemplatesService = FirestoreTemplatesService;
+                    console.log('✅ Module script: FirestoreTemplatesService をグローバルスコープに公開');
+                } else {
+                    console.error('❌ Module script: Firebase初期化失敗');
+                    // 初期化失敗時でもLocalStorageモードで動作するようにサービスを公開
+                    window.FirestoreTemplatesService = null;
+                }
+            } catch (error) {
+                console.error('❌ Module script: 初期化エラー:', error);
+            }
+        }
+
     </script>
     
     <script>
@@ -1933,8 +1921,8 @@
         // Firestoreからテンプレートを読み込み
         async function loadTemplatesFromFirestore() {
             try {
-                console.log('🔍 Firebase接続状態:', app ? '接続済み' : '未接続');
-                console.log('🔍 Firestore接続状態:', db ? '接続済み' : '未接続');
+                console.log('🔍 Firebase接続状態:', window.firebaseApp ? '接続済み' : '未接続');
+                console.log('🔍 Firestore接続状態:', window.firestoreDb ? '接続済み' : '未接続');
                 console.log('🔍 テンプレート読み込み開始...');
                 
                 promptTemplates = await window.FirestoreTemplatesService.getAllTemplates();
