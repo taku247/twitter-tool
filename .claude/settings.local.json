@@ -49,7 +49,8 @@
       "Bash(jq:*)",
       "Bash(timeout 5m npm run check:db)",
       "Bash(mv:*)",
-      "mcp__ide__executeCode"
+      "mcp__ide__executeCode",
+      "Bash(-H \"Content-Type: application/json\")"
     ],
     "deny": []
   }

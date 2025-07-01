@@ -1482,6 +1482,236 @@ REDIS_URL=redis://localhost:6379
 4. **切り替え**: Vercel Cronから外部ワーカー呼び出しに変更
 5. **監視**: 移行後の動作確認とパフォーマンス監視
 
+## 🚀 Railway Worker Migration (Phase 1 Complete)
+
+### 概要
+
+2025年7月1日、長時間処理（10分以上）に対応するため、処理の一部をRailway Workerに移行しました。
+
+### アーキテクチャ
+
+#### Hybrid Architecture (Vercel + Railway)
+```
+Vercel (UI + Light Cron)          Railway (Heavy Processing)
+├── Frontend Pages               ├── TwitterWorker.js
+├── API Endpoints                ├── Batch Processing  
+├── Cron Trigger (15min)         ├── Discord Notifications
+└── UI/UX Functions              └── Long-running Tasks
+     ↓ HTTP Request                    ↑ Returns immediately
+     /api/cron/universal-executor → /api/worker/execute
+```
+
+#### 処理の流れ
+```
+1. Vercel Cron (15分ごと実行)
+   ↓
+2. Railway Worker呼び出し (HTTP POST)
+   ↓ 
+3. Railway側で即座にレスポンス返却 (Vercelタイムアウト回避)
+   ↓
+4. バックグラウンドで重い処理実行 (10分以上可能)
+   ├── Twitter API取得
+   ├── Firestore更新
+   └── Discord通知
+```
+
+### 技術仕様
+
+#### Railway Worker
+- **URL**: `https://twitter-tool-production.up.railway.app`
+- **プラン**: Hobby ($5/月, 500時間/月)
+- **Node.js**: 18.19.0
+- **メモリ**: 512MB
+- **処理時間制限**: なし
+
+#### 実装されたAPI
+
+**Health Check**
+```bash
+GET /health
+# レスポンス例
+{
+  "status": "healthy",
+  "uptime": 2288.999,
+  "memory": {"used": 15, "total": 17, "unit": "MB"},
+  "environment": "production"
+}
+```
+
+**Worker Execution** (認証必須)
+```bash
+POST /api/worker/execute
+Authorization: Bearer secret
+Content-Type: application/json
+
+{
+  "type": "scheduled_processing",
+  "data": {},
+  "requestId": "vercel_exec-1751395520244"
+}
+
+# レスポンス (即座に返却)
+{
+  "success": true,
+  "accepted": true,
+  "jobType": "scheduled_processing",
+  "requestId": "vercel_exec-1751395520244",
+  "startTime": "2025-07-01T18:45:21.023Z"
+}
+```
+
+**AI Analysis** (Phase 3で実装予定)
+```bash
+POST /api/worker/analysis
+Authorization: Bearer secret
+Content-Type: application/json
+
+{
+  "sourceId": "list-id",
+  "analysisType": "sentiment",
+  "notifyDiscord": true
+}
+```
+
+#### Vercel側の変更
+
+**軽量化されたCron実行**
+```javascript
+const cronExecutor = async (req, res) => {
+    // Railway Worker URL確認
+    if (!process.env.RAILWAY_WORKER_URL) {
+        return await cronExecutorLegacy(req, res); // フォールバック
+    }
+    
+    // Railway Workerに処理を委譲
+    const response = await fetch(`${process.env.RAILWAY_WORKER_URL}/api/worker/execute`, {
+        method: 'POST',
+        headers: {
+            'Authorization': `Bearer ${process.env.WORKER_SECRET}`,
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            type: 'scheduled_processing',
+            data: {},
+            requestId: `vercel_${executionId}`
+        }),
+        timeout: 10000 // 10秒でタイムアウト
+    });
+    
+    return res.json({ 
+        success: true, 
+        triggered: true,
+        workerResponse: await response.json(),
+        method: 'railway_worker'
+    });
+};
+```
+
+### 環境変数設定
+
+#### Vercel
+```bash
+RAILWAY_WORKER_URL=https://twitter-tool-production.up.railway.app
+WORKER_SECRET=secret
+```
+
+#### Railway
+```bash
+# Twitter & AI APIs
+TWITTER_API_KEY=93656fff637540aaa4f1903609ae9e55
+OPENAI_API_KEY=sk-proj-[key]
+
+# Firebase Configuration
+FIREBASE_API_KEY=AIzaSyAME5BfBd-xfOpV-Mb7x2Q_XS9wG_jrwXA
+FIREBASE_AUTH_DOMAIN=meme-coin-tracker-79c24.firebaseapp.com
+FIREBASE_PROJECT_ID=meme-coin-tracker-79c24
+FIREBASE_STORAGE_BUCKET=meme-coin-tracker-79c24.firebasestorage.app
+FIREBASE_MESSAGING_SENDER_ID=944579690444
+FIREBASE_APP_ID=1:944579690444:web:4f452680c38ff17caa2769
+FIREBASE_MEASUREMENT_ID=G-78KWRC4N05
+
+# Security
+WORKER_SECRET=secret
+NODE_ENV=production
+```
+
+### 動作確認
+
+#### Phase 1実装完了状況 (2025-07-01)
+✅ Railway Worker環境構築完了  
+✅ Vercel-Railway間連携実装完了  
+✅ 環境変数設定完了  
+✅ 認証システム実装完了  
+✅ タスク処理動作確認完了  
+✅ Discord通知動作確認完了  
+✅ フォールバック機能実装完了  
+
+#### 実行ログ例
+```
+📋 Job received: scheduled_processing | Request: manual-test-1751396946
+🔄 Starting job execution: manual-test-1751396946
+🔍 Initializing Firebase for project: meme-coin-tracker-79c24
+✅ Firebase initialized in Railway Worker
+📋 Processing scheduled tasks...
+📊 Total active tasks: 1
+📊 Tasks to execute: 1
+▶️ Executing task: Fixed Database Test List - 定期取得
+✅ Processed X new tweets for Fixed Database Test List
+📢 Discord notification sent
+✅ Job completed: manual-test-1751396946
+```
+
+### 利点
+
+#### 1. 処理時間制限解除
+- **従来**: Vercel 15分制限
+- **現在**: Railway 制限なし（10分以上の処理が可能）
+
+#### 2. 安定性向上
+- **即座レスポンス**: Vercelタイムアウト回避
+- **フォールバック**: Railway障害時は従来方式で実行
+- **エラーハンドリング**: 詳細なログとDiscord通知
+
+#### 3. コスト効率
+- **Vercel**: UIと軽量cron（無料プラン継続可能）
+- **Railway**: 重い処理のみ（$5/月、500時間）
+
+#### 4. 拡張性
+- **Phase 2**: ChatGPT分析機能追加予定
+- **Phase 3**: 高度なAI分析とレポート機能
+- **キュー機能**: 複数タスクの並列処理
+
+### 今後の拡張計画
+
+#### Phase 2: ChatGPT Integration
+- ツイート内容の感情分析
+- トレンド分析とインサイト
+- 自動要約とレポート生成
+
+#### Phase 3: Advanced Analytics
+- リアルタイム分析ダッシュボード
+- 予測分析機能
+- カスタムアラート機能
+
+### トラブルシューティング
+
+#### Railway Worker接続確認
+```bash
+# Health Check
+curl https://twitter-tool-production.up.railway.app/health
+
+# Worker Test (認証必要)
+curl -X POST https://twitter-tool-production.up.railway.app/api/worker/execute \
+  -H "Authorization: Bearer secret" \
+  -H "Content-Type: application/json" \
+  -d '{"type":"test","data":{"message":"接続テスト"},"requestId":"test-001"}'
+```
+
+#### ログ確認箇所
+1. **Vercel**: Functions → `/api/cron/universal-executor`
+2. **Railway**: Dashboard → Logs
+3. **Discord**: 通知チャンネル
+
 ## License
 
 MIT
