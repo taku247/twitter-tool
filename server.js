@@ -2609,7 +2609,7 @@ async function loadListTweetsFromFirestore(listId) {
     }
 }
 
-// 汎用Cron実行エンドポイント（GET/POST両対応）
+// 軽量化されたCron実行エンドポイント（Railway Worker呼び出し）
 const cronExecutor = async (req, res) => {
     const executionId = `exec-${Date.now()}`;
     const startTime = new Date();
@@ -2630,7 +2630,71 @@ const cronExecutor = async (req, res) => {
             return res.status(401).json({ error: 'Unauthorized' });
         }
         
-        console.log(`🔄 [${executionId}] Starting universal cron executor`);
+        console.log(`🔄 [${executionId}] Triggering Railway worker...`);
+        
+        // Railway Worker URL確認
+        if (!process.env.RAILWAY_WORKER_URL) {
+            console.log(`ℹ️  RAILWAY_WORKER_URL not set, falling back to legacy execution`);
+            return await cronExecutorLegacy(req, res);
+        }
+        
+        // Railway Workerに処理を委譲
+        try {
+            const response = await fetch(`${process.env.RAILWAY_WORKER_URL}/api/worker/execute`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${process.env.WORKER_SECRET}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    type: 'scheduled_processing',
+                    data: {},
+                    requestId: `vercel_${executionId}`
+                }),
+                timeout: 10000 // 10秒でタイムアウト
+            });
+            
+            if (response.ok) {
+                const workerResult = await response.json();
+                console.log(`✅ [${executionId}] Railway worker triggered successfully:`, workerResult);
+                
+                return res.json({ 
+                    success: true, 
+                    triggered: true,
+                    executionId: executionId,
+                    workerResponse: workerResult,
+                    processingTime: Date.now() - startTime.getTime(),
+                    timestamp: new Date(),
+                    method: 'railway_worker'
+                });
+            } else {
+                throw new Error(`Railway worker responded with status: ${response.status}`);
+            }
+            
+        } catch (workerError) {
+            console.error(`❌ [${executionId}] Failed to trigger Railway worker:`, workerError.message);
+            
+            // Railway Workerが失敗した場合はフォールバック実行
+            console.log(`🔄 [${executionId}] Falling back to legacy execution...`);
+            return await cronExecutorLegacy(req, res);
+    } catch (error) {
+        console.error(`❌ [${executionId}] Cron execution error:`, error);
+        return res.status(500).json({ 
+            success: false, 
+            error: error.message,
+            executionId: executionId,
+            method: 'railway_worker_failed'
+        });
+    }
+};
+
+// レガシーCron実行エンドポイント（フォールバック用）
+const cronExecutorLegacy = async (req, res) => {
+    const executionId = `legacy-exec-${Date.now()}`;
+    const startTime = new Date();
+    
+    try {
+        console.log(`🔄 [${executionId}] Starting legacy cron executor`);
         
         // 実行対象タスクを取得（Firestore接続エラー対策付き）
         let allTasks = [];
