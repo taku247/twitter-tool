@@ -15,12 +15,16 @@ const {
     Timestamp
 } = require('firebase/firestore');
 const axios = require('axios');
+const ChatGPTAnalyzer = require('./ChatGPTAnalyzer');
+const AnalysisTemplateManager = require('./AnalysisTemplateManager');
 
 class TwitterWorker {
     constructor() {
         this.db = null;
         this.app = null;
         this.isInitialized = false;
+        this.chatGPTAnalyzer = null;
+        this.templateManager = null;
         this.initializeFirebase();
     }
     
@@ -55,6 +59,11 @@ class TwitterWorker {
             
             this.app = initializeApp(firebaseConfig);
             this.db = getFirestore(this.app);
+            
+            // ChatGPT関連サービス初期化
+            this.chatGPTAnalyzer = new ChatGPTAnalyzer(this.db);
+            this.templateManager = new AnalysisTemplateManager(this.db);
+            
             this.isInitialized = true;
             
             console.log('✅ Firebase initialized in Railway Worker');
@@ -189,15 +198,19 @@ class TwitterWorker {
             }
         }
         
+        // ChatGPT分析実行
+        const analysisResults = await this.checkAndRunAnalysis(tasksToExecute);
+        
         // Discord通知
-        if (results.length > 0) {
-            await this.sendDiscordSummary(results);
+        if (results.length > 0 || analysisResults.length > 0) {
+            await this.sendDiscordSummary(results, analysisResults);
         }
         
         return { 
             executedTasks: results.length, 
             successfulTasks: results.filter(r => r.success).length,
             failedTasks: results.filter(r => !r.success).length,
+            analysisResults: analysisResults.length,
             results 
         };
     }
@@ -253,7 +266,8 @@ class TwitterWorker {
             listName: listData.name,
             newTweets: newTweets.length, 
             totalProcessed: tweets.length,
-            duplicatesSkipped: tweets.length - newTweets.length
+            duplicatesSkipped: tweets.length - newTweets.length,
+            listData: listData  // 分析チェック用
         };
     }
     
@@ -369,20 +383,170 @@ class TwitterWorker {
         return newTweets;
     }
     
+    // ========== ChatGPT分析処理 ==========
+    async checkAndRunAnalysis(executedTasks) {
+        const analysisResults = [];
+        
+        for (const task of executedTasks) {
+            try {
+                // タスク結果からリストデータを取得
+                const listData = task.result?.listData;
+                if (!listData) continue;
+                
+                // ChatGPT分析設定チェック
+                const shouldAnalyze = await this.shouldRunAnalysis(listData, task.config.relatedTableId);
+                if (!shouldAnalyze.should) {
+                    console.log(`⏭️ Skipping analysis for ${listData.name}: ${shouldAnalyze.reason}`);
+                    continue;
+                }
+                
+                console.log(`🤖 Starting ChatGPT analysis for ${listData.name}`);
+                
+                // 分析実行
+                const analysisResult = await this.chatGPTAnalyzer.analyze(
+                    task.config.relatedTableId,
+                    listData,
+                    shouldAnalyze.templateId,
+                    shouldAnalyze.options
+                );
+                
+                analysisResults.push({
+                    listId: task.config.relatedTableId,
+                    listName: listData.name,
+                    success: true,
+                    result: analysisResult
+                });
+                
+                console.log(`✅ Analysis completed for ${listData.name}: ${analysisResult.analysisId}`);
+                
+            } catch (error) {
+                console.error(`❌ Analysis failed for task ${task.id}:`, error);
+                analysisResults.push({
+                    listId: task.config?.relatedTableId,
+                    listName: task.taskName || task.id,
+                    success: false,
+                    error: error.message
+                });
+            }
+        }
+        
+        return analysisResults;
+    }
+    
+    async shouldRunAnalysis(listData, listId) {
+        // ChatGPT分析設定チェック
+        if (!listData.analysis || !listData.analysis.enabled) {
+            return { should: false, reason: 'Analysis not enabled' };
+        }
+        
+        // OpenAI API キーチェック
+        if (!process.env.OPENAI_API_KEY) {
+            return { should: false, reason: 'OpenAI API key not configured' };
+        }
+        
+        // テンプレートID確認
+        const templateId = listData.analysis.templateId;
+        if (!templateId) {
+            return { should: false, reason: 'No template configured' };
+        }
+        
+        // テンプレート存在確認
+        try {
+            const template = await this.templateManager.getById(templateId);
+            if (!template) {
+                return { should: false, reason: 'Template not found' };
+            }
+        } catch (error) {
+            return { should: false, reason: `Template error: ${error.message}` };
+        }
+        
+        // 分析頻度チェック
+        const frequency = listData.analysis.frequency || 'daily';
+        const lastAnalyzed = listData.analysis.lastAnalyzed;
+        
+        if (lastAnalyzed && !this.shouldRunByFrequency(lastAnalyzed, frequency)) {
+            return { should: false, reason: `Too soon (frequency: ${frequency})` };
+        }
+        
+        // 最小ツイート数チェック
+        const minTweets = listData.analysis.minTweets || 5;
+        const unanalyzedCount = await this.getUnanalyzedTweetCount(listId);
+        
+        if (unanalyzedCount < minTweets) {
+            return { should: false, reason: `Not enough tweets (${unanalyzedCount} < ${minTweets})` };
+        }
+        
+        return {
+            should: true,
+            templateId: templateId,
+            options: {
+                frequency: frequency,
+                minTweets: minTweets,
+                maxTweets: listData.analysis.maxTweets || 50
+            }
+        };
+    }
+    
+    shouldRunByFrequency(lastAnalyzed, frequency) {
+        const now = new Date();
+        const lastDate = lastAnalyzed.toDate ? lastAnalyzed.toDate() : new Date(lastAnalyzed);
+        const hoursSince = (now - lastDate) / (1000 * 60 * 60);
+        
+        switch (frequency) {
+            case 'hourly':
+                return hoursSince >= 1;
+            case 'daily':
+                return hoursSince >= 24;
+            case 'weekly':
+                return hoursSince >= 168; // 7 * 24
+            default:
+                return hoursSince >= 24; // デフォルトは日次
+        }
+    }
+    
+    async getUnanalyzedTweetCount(listId) {
+        try {
+            const snapshot = await getDocs(
+                query(
+                    collection(this.db, 'collected_tweets'),
+                    where('sourceId', '==', listId),
+                    where('analysis.analyzed', '!=', true)
+                )
+            );
+            return snapshot.size;
+        } catch (error) {
+            console.error('Failed to count unanalyzed tweets:', error);
+            return 0;
+        }
+    }
+    
     // ========== Discord通知 ==========
-    async sendDiscordSummary(results) {
+    async sendDiscordSummary(results, analysisResults = []) {
         try {
             const successCount = results.filter(r => r.success).length;
             const errorCount = results.filter(r => !r.success).length;
             const totalNewTweets = results
                 .filter(r => r.success)
                 .reduce((sum, r) => sum + (r.result?.newTweets || 0), 0);
+                
+            // 分析結果の集計
+            const analysisSuccess = analysisResults.filter(r => r.success).length;
+            const analysisError = analysisResults.filter(r => !r.success).length;
             
             const fields = [
-                { name: "✅ 成功", value: successCount.toString(), inline: true },
-                { name: "❌ エラー", value: errorCount.toString(), inline: true },
+                { name: "✅ タスク成功", value: successCount.toString(), inline: true },
+                { name: "❌ タスクエラー", value: errorCount.toString(), inline: true },
                 { name: "🐦 新規ツイート", value: totalNewTweets.toString(), inline: true }
             ];
+            
+            // 分析結果がある場合
+            if (analysisResults.length > 0) {
+                fields.push(
+                    { name: "🤖 分析成功", value: analysisSuccess.toString(), inline: true },
+                    { name: "🔥 分析エラー", value: analysisError.toString(), inline: true },
+                    { name: "📊 分析済み", value: analysisResults.length.toString(), inline: true }
+                );
+            }
             
             // 各タスクの詳細
             const taskDetails = results.map(r => {
@@ -393,14 +557,30 @@ class TwitterWorker {
                 }
             }).join('\n');
             
-            if (taskDetails) {
-                fields.push({ name: "📋 詳細", value: taskDetails.substring(0, 1024), inline: false });
+            // 分析詳細
+            const analysisDetails = analysisResults.map(r => {
+                if (r.success) {
+                    const tokens = r.result.tokensUsed || 'N/A';
+                    return `• ${r.listName}: 📊 分析完了 (${tokens} tokens)`;
+                } else {
+                    return `• ${r.listName}: 🔥 分析失敗 (${r.error})`;
+                }
+            }).join('\\n');
+            
+            const allDetails = [taskDetails, analysisDetails].filter(d => d).join('\\n\\n');
+            
+            if (allDetails) {
+                fields.push({ name: "📋 詳細", value: allDetails.substring(0, 1024), inline: false });
             }
+            
+            const totalErrors = errorCount + analysisError;
+            const hasAnalysis = analysisResults.length > 0;
+            const title = hasAnalysis ? "🤖 Railway Worker - タスク・分析実行完了" : "🤖 Railway Worker - タスク実行完了";
             
             const message = {
                 embeds: [{
-                    title: "🤖 Railway Worker - タスク実行完了",
-                    color: errorCount > 0 ? 0xff6b6b : 0x28a745,
+                    title: title,
+                    color: totalErrors > 0 ? 0xff6b6b : 0x28a745,
                     fields: fields,
                     timestamp: new Date().toISOString(),
                     footer: { text: "Railway Worker System" }
