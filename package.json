@@ -7,7 +7,10 @@
     "start": "node server.js",
     "dev": "PORT=3002 nodemon server.js",
     "build": "echo 'No build step required'",
-    "check:db": "node scripts/db-integrity-check.js"
+    "check:db": "node scripts/db-integrity-check.js",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage"
   },
   "engines": {
     "node": ">=18.0.0"
@@ -29,6 +32,20 @@
     "ws": "^8.18.2"
   },
   "devDependencies": {
-    "nodemon": "^3.1.10"
+    "nodemon": "^3.1.10",
+    "jest": "^29.7.0",
+    "supertest": "^6.3.3"
+  },
+  "jest": {
+    "testEnvironment": "node",
+    "coverageDirectory": "coverage",
+    "collectCoverageFrom": [
+      "railway-worker/**/*.js",
+      "!railway-worker/server.js",
+      "!node_modules/**"
+    ],
+    "testMatch": [
+      "**/tests/**/*.test.js"
+    ]
   }
 }

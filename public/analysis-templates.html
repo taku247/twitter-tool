@@ -1,0 +1,709 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ChatGPT分析テンプレート管理 - Twitter Analytics Tool</title>
+    <style>
+        :root {
+            --bg-primary: #0a0a0a;
+            --bg-secondary: #1a1a1a;
+            --bg-card: #242424;
+            --text-primary: #ffffff;
+            --text-secondary: #888888;
+            --accent: #1DA1F2;
+            --success: #28a745;
+            --danger: #dc3545;
+            --warning: #ffc107;
+            --border: #333333;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background-color: var(--bg-primary);
+            color: var(--text-primary);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            line-height: 1.6;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        /* ナビゲーション */
+        .navigation {
+            background-color: var(--bg-secondary);
+            padding: 15px 0;
+            margin-bottom: 30px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .nav-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .nav-brand {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: var(--accent);
+            text-decoration: none;
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 30px;
+            list-style: none;
+        }
+
+        .nav-links a {
+            color: var(--text-primary);
+            text-decoration: none;
+            transition: color 0.3s;
+        }
+
+        .nav-links a:hover, .nav-links a.active {
+            color: var(--accent);
+        }
+
+        /* ヘッダー */
+        h1 {
+            margin-bottom: 30px;
+            font-size: 2rem;
+        }
+
+        /* テンプレートカード */
+        .template-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+            gap: 20px;
+            margin-bottom: 40px;
+        }
+
+        .template-card {
+            background-color: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 20px;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .template-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(29, 161, 242, 0.1);
+        }
+
+        .template-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: start;
+            margin-bottom: 15px;
+        }
+
+        .template-title {
+            font-size: 1.25rem;
+            font-weight: bold;
+            color: var(--text-primary);
+        }
+
+        .template-category {
+            display: inline-block;
+            padding: 4px 12px;
+            background-color: var(--accent);
+            color: white;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            text-transform: uppercase;
+        }
+
+        .template-description {
+            color: var(--text-secondary);
+            margin-bottom: 15px;
+            font-size: 0.9rem;
+        }
+
+        .template-stats {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 15px;
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+        }
+
+        .template-actions {
+            display: flex;
+            gap: 10px;
+        }
+
+        .btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 4px;
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: all 0.3s;
+            text-decoration: none;
+            display: inline-block;
+        }
+
+        .btn-primary {
+            background-color: var(--accent);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background-color: #1a8cd8;
+        }
+
+        .btn-secondary {
+            background-color: transparent;
+            color: var(--text-secondary);
+            border: 1px solid var(--border);
+        }
+
+        .btn-secondary:hover {
+            background-color: var(--bg-secondary);
+            color: var(--text-primary);
+        }
+
+        .btn-danger {
+            background-color: transparent;
+            color: var(--danger);
+            border: 1px solid var(--danger);
+        }
+
+        .btn-danger:hover {
+            background-color: var(--danger);
+            color: white;
+        }
+
+        /* テンプレート作成フォーム */
+        .create-template {
+            background-color: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 30px;
+            margin-bottom: 40px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 500;
+            color: var(--text-primary);
+        }
+
+        input[type="text"],
+        select,
+        textarea {
+            width: 100%;
+            padding: 10px;
+            background-color: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            color: var(--text-primary);
+            font-size: 1rem;
+        }
+
+        input[type="text"]:focus,
+        select:focus,
+        textarea:focus {
+            outline: none;
+            border-color: var(--accent);
+        }
+
+        textarea {
+            min-height: 200px;
+            resize: vertical;
+            font-family: monospace;
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+
+        .slider-container {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        input[type="range"] {
+            flex: 1;
+        }
+
+        .slider-value {
+            min-width: 40px;
+            text-align: center;
+            color: var(--accent);
+            font-weight: bold;
+        }
+
+        /* モーダル */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.8);
+            z-index: 1000;
+        }
+
+        .modal-content {
+            position: relative;
+            background-color: var(--bg-card);
+            margin: 50px auto;
+            padding: 30px;
+            width: 90%;
+            max-width: 600px;
+            border-radius: 8px;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .close {
+            color: var(--text-secondary);
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        .close:hover {
+            color: var(--text-primary);
+        }
+
+        /* トースト通知 */
+        .toast {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            padding: 15px 20px;
+            border-radius: 4px;
+            color: white;
+            font-weight: 500;
+            transform: translateY(100px);
+            opacity: 0;
+            transition: all 0.3s;
+            z-index: 2000;
+        }
+
+        .toast.show {
+            transform: translateY(0);
+            opacity: 1;
+        }
+
+        .toast.success {
+            background-color: var(--success);
+        }
+
+        .toast.error {
+            background-color: var(--danger);
+        }
+
+        /* ローディング */
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid var(--border);
+            border-radius: 50%;
+            border-top-color: var(--accent);
+            animation: spin 1s ease-in-out infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* レスポンシブ */
+        @media (max-width: 768px) {
+            .form-row {
+                grid-template-columns: 1fr;
+            }
+
+            .template-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .nav-links {
+                display: none;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- ナビゲーション -->
+    <nav class="navigation">
+        <div class="nav-container">
+            <a href="/" class="nav-brand">Twitter Analytics Tool</a>
+            <ul class="nav-links">
+                <li><a href="/">ホーム</a></li>
+                <li><a href="/list-scheduler.html">リスト管理</a></li>
+                <li><a href="/analysis-templates.html" class="active">分析テンプレート</a></li>
+                <li><a href="/kaitotweet.html">KaitoTweet</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <div class="container">
+        <h1>📝 ChatGPT分析テンプレート管理</h1>
+
+        <!-- テンプレート作成フォーム -->
+        <div class="create-template">
+            <h2>➕ 新規テンプレート作成</h2>
+            <form id="templateForm">
+                <div class="form-group">
+                    <label for="templateName">テンプレート名</label>
+                    <input type="text" id="templateName" name="name" required placeholder="例: 感情分析">
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="templateCategory">カテゴリ</label>
+                        <select id="templateCategory" name="category" required>
+                            <option value="">選択してください</option>
+                            <option value="sentiment">感情分析</option>
+                            <option value="trend">トレンド分析</option>
+                            <option value="summary">要約</option>
+                            <option value="custom">カスタム</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="maxTokens">最大トークン数</label>
+                        <input type="number" id="maxTokens" name="maxTokens" min="100" max="4000" value="2000">
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="templateDescription">説明</label>
+                    <input type="text" id="templateDescription" name="description" placeholder="このテンプレートの説明">
+                </div>
+
+                <div class="form-group">
+                    <label for="templatePrompt">ChatGPTプロンプト</label>
+                    <textarea id="templatePrompt" name="prompt" required placeholder="以下のツイートを分析してください。&#10;&#10;ツイートデータ:&#10;{{tweets}}&#10;&#10;分析結果を以下の形式で返してください:"></textarea>
+                    <small style="color: var(--text-secondary);">※ {{tweets}} は実際のツイートデータに置換されます</small>
+                </div>
+
+                <div class="form-group">
+                    <label for="temperature">Temperature (創造性)</label>
+                    <div class="slider-container">
+                        <input type="range" id="temperature" name="temperature" min="0" max="1" step="0.1" value="0.7">
+                        <span class="slider-value">0.7</span>
+                    </div>
+                    <small style="color: var(--text-secondary);">0.0 = 確定的 / 1.0 = 創造的</small>
+                </div>
+
+                <button type="submit" class="btn btn-primary">テンプレート作成</button>
+            </form>
+        </div>
+
+        <!-- テンプレート一覧 -->
+        <h2 style="margin-bottom: 20px;">📋 保存済みテンプレート</h2>
+        <div id="templateGrid" class="template-grid">
+            <!-- テンプレートカードがここに動的に追加されます -->
+        </div>
+    </div>
+
+    <!-- 編集モーダル -->
+    <div id="editModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>テンプレートを編集</h2>
+                <span class="close">&times;</span>
+            </div>
+            <form id="editForm">
+                <!-- 編集フォームの内容は動的に生成 -->
+            </form>
+        </div>
+    </div>
+
+    <!-- テスト実行モーダル -->
+    <div id="testModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>テンプレートをテスト</h2>
+                <span class="close">&times;</span>
+            </div>
+            <div id="testContent">
+                <div class="form-group">
+                    <label>テスト用ツイート (各行に1つずつ入力)</label>
+                    <textarea id="testTweets" rows="5" placeholder="@user1: これはテストツイートです&#10;@user2: ChatGPT分析のテストを実行中"></textarea>
+                </div>
+                <button class="btn btn-primary" onclick="runTest()">テスト実行</button>
+                <div id="testResult" style="margin-top: 20px;"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- トースト通知 -->
+    <div id="toast" class="toast"></div>
+
+    <script type="module">
+        // Firebase初期化
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
+        import { 
+            getFirestore, 
+            collection, 
+            addDoc, 
+            getDocs, 
+            updateDoc, 
+            deleteDoc, 
+            doc, 
+            query, 
+            where,
+            orderBy
+        } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
+
+        let app, db;
+        let currentEditingId = null;
+        let currentTestingId = null;
+
+        // Firebase設定取得と初期化
+        async function initializeFirebase() {
+            try {
+                const response = await fetch('/api/config/firebase');
+                const config = await response.json();
+                
+                app = initializeApp(config);
+                db = getFirestore(app);
+                
+                console.log('✅ Firebase initialized');
+                
+                // テンプレート一覧を読み込み
+                loadTemplates();
+                
+            } catch (error) {
+                console.error('❌ Firebase initialization failed:', error);
+                showToast('Firebaseの初期化に失敗しました', 'error');
+            }
+        }
+
+        // テンプレート一覧読み込み
+        async function loadTemplates() {
+            try {
+                const templatesRef = collection(db, 'analysis_templates');
+                const q = query(templatesRef, orderBy('createdAt', 'desc'));
+                const snapshot = await getDocs(q);
+                
+                const grid = document.getElementById('templateGrid');
+                grid.innerHTML = '';
+                
+                if (snapshot.empty) {
+                    grid.innerHTML = '<p style="color: var(--text-secondary);">テンプレートがまだ登録されていません。</p>';
+                    return;
+                }
+                
+                snapshot.forEach(doc => {
+                    const template = { id: doc.id, ...doc.data() };
+                    grid.appendChild(createTemplateCard(template));
+                });
+                
+            } catch (error) {
+                console.error('Failed to load templates:', error);
+                showToast('テンプレートの読み込みに失敗しました', 'error');
+            }
+        }
+
+        // テンプレートカード作成
+        function createTemplateCard(template) {
+            const card = document.createElement('div');
+            card.className = 'template-card';
+            
+            const categoryColors = {
+                sentiment: '#1DA1F2',
+                trend: '#E1306C',
+                summary: '#00BF63',
+                custom: '#845EC2'
+            };
+            
+            card.innerHTML = `
+                <div class="template-header">
+                    <h3 class="template-title">${escapeHtml(template.name)}</h3>
+                    <span class="template-category" style="background-color: ${categoryColors[template.category] || '#666'}">
+                        ${getCategoryLabel(template.category)}
+                    </span>
+                </div>
+                <p class="template-description">${escapeHtml(template.description || '説明なし')}</p>
+                <div class="template-stats">
+                    <span>使用回数: ${template.usage?.totalRuns || 0}回</span>
+                    <span>最終使用: ${template.usage?.lastUsed ? formatDate(template.usage.lastUsed) : '未使用'}</span>
+                </div>
+                <div class="template-actions">
+                    <button class="btn btn-primary" onclick="editTemplate('${template.id}')">編集</button>
+                    <button class="btn btn-secondary" onclick="testTemplate('${template.id}')">テスト</button>
+                    <button class="btn btn-danger" onclick="deleteTemplate('${template.id}', '${escapeHtml(template.name)}')">削除</button>
+                </div>
+            `;
+            
+            return card;
+        }
+
+        // カテゴリラベル取得
+        function getCategoryLabel(category) {
+            const labels = {
+                sentiment: '感情分析',
+                trend: 'トレンド分析',
+                summary: '要約',
+                custom: 'カスタム'
+            };
+            return labels[category] || category;
+        }
+
+        // 日付フォーマット
+        function formatDate(timestamp) {
+            if (!timestamp) return '未設定';
+            const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
+            const now = new Date();
+            const diff = now - date;
+            
+            if (diff < 3600000) {
+                return `${Math.floor(diff / 60000)}分前`;
+            } else if (diff < 86400000) {
+                return `${Math.floor(diff / 3600000)}時間前`;
+            } else if (diff < 604800000) {
+                return `${Math.floor(diff / 86400000)}日前`;
+            } else {
+                return date.toLocaleDateString('ja-JP');
+            }
+        }
+
+        // HTMLエスケープ
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // トースト通知表示
+        function showToast(message, type = 'success') {
+            const toast = document.getElementById('toast');
+            toast.textContent = message;
+            toast.className = `toast ${type} show`;
+            
+            setTimeout(() => {
+                toast.classList.remove('show');
+            }, 3000);
+        }
+
+        // グローバル関数として公開
+        window.editTemplate = async function(id) {
+            currentEditingId = id;
+            // 編集処理
+            showToast('編集機能は準備中です', 'error');
+        };
+
+        window.testTemplate = async function(id) {
+            currentTestingId = id;
+            document.getElementById('testModal').style.display = 'block';
+        };
+
+        window.deleteTemplate = async function(id, name) {
+            if (!confirm(`テンプレート「${name}」を削除しますか？この操作は取り消せません。`)) {
+                return;
+            }
+            
+            try {
+                await deleteDoc(doc(db, 'analysis_templates', id));
+                showToast('テンプレートを削除しました', 'success');
+                loadTemplates();
+            } catch (error) {
+                console.error('Failed to delete template:', error);
+                showToast('削除に失敗しました', 'error');
+            }
+        };
+
+        window.runTest = async function() {
+            const tweets = document.getElementById('testTweets').value.trim();
+            if (!tweets) {
+                showToast('テスト用ツイートを入力してください', 'error');
+                return;
+            }
+            
+            showToast('テスト機能は準備中です', 'error');
+        };
+
+        // フォーム送信処理
+        document.getElementById('templateForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const formData = new FormData(e.target);
+            const templateData = {
+                name: formData.get('name'),
+                category: formData.get('category'),
+                description: formData.get('description'),
+                prompt: formData.get('prompt'),
+                maxTokens: parseInt(formData.get('maxTokens')),
+                temperature: parseFloat(formData.get('temperature')),
+                active: true,
+                createdAt: new Date(),
+                updatedAt: new Date(),
+                usage: {
+                    totalRuns: 0,
+                    lastUsed: null
+                }
+            };
+            
+            try {
+                await addDoc(collection(db, 'analysis_templates'), templateData);
+                showToast('テンプレートを作成しました', 'success');
+                e.target.reset();
+                loadTemplates();
+            } catch (error) {
+                console.error('Failed to create template:', error);
+                showToast('作成に失敗しました', 'error');
+            }
+        });
+
+        // Temperature スライダー
+        document.getElementById('temperature').addEventListener('input', (e) => {
+            e.target.nextElementSibling.textContent = e.target.value;
+        });
+
+        // モーダル閉じる
+        document.querySelectorAll('.close').forEach(closeBtn => {
+            closeBtn.addEventListener('click', () => {
+                closeBtn.closest('.modal').style.display = 'none';
+            });
+        });
+
+        // モーダル外クリックで閉じる
+        window.addEventListener('click', (e) => {
+            if (e.target.classList.contains('modal')) {
+                e.target.style.display = 'none';
+            }
+        });
+
+        // 初期化
+        initializeFirebase();
+    </script>
+</body>
+</html>
