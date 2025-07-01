@@ -1683,10 +1683,179 @@ NODE_ENV=production
 
 ### 今後の拡張計画
 
-#### Phase 2: ChatGPT Integration
-- ツイート内容の感情分析
-- トレンド分析とインサイト
-- 自動要約とレポート生成
+#### Phase 2: ChatGPT Integration (実装予定)
+
+**概要**: 収集したTwitterリストのツイートをChatGPTで自動分析し、感情分析・トレンド分析・要約を生成する機能
+
+**実装内容:**
+
+##### 📊 **データベース拡張**
+```javascript
+// 1. 新コレクション: analysis_templates (ChatGPTプロンプト管理)
+analysis_templates/ {
+    templateId: "template-sentiment-001",
+    name: "感情分析",
+    category: "sentiment", // sentiment, trend, summary, custom
+    prompt: "以下のツイートを分析して、感情分析を行ってください...",
+    maxTokens: 2000,
+    temperature: 0.7,
+    active: true
+}
+
+// 2. 拡張: twitter_lists にChatGPT設定追加
+twitter_lists/ {
+    // 既存フィールド...
+    analysis: {
+        enabled: true,                           // ChatGPT分析を行うか
+        templateId: "template-sentiment-001",    // 使用するテンプレートID
+        frequency: "daily",                      // daily, weekly, manual, per_execution
+        schedule: "18:00",                       // 実行時刻（daily/weeklyの場合）
+        minTweets: 5,                           // 最低ツイート数（分析実行条件）
+        maxTweets: 50,                          // 分析対象ツイート数上限
+        lastAnalyzed: "2025-07-01T18:00:00Z",   // 最終分析時刻
+        discordNotify: true                     // Discord通知するか
+    }
+}
+
+// 3. 新コレクション: ai_analysis (分析結果メタデータ)
+ai_analysis/ {
+    analysisId: "analysis-1751400000-abc123",
+    sourceId: "list-1704110400-def456",
+    templateId: "template-sentiment-001",
+    status: "completed",                        // pending, processing, completed, error
+    tokensUsed: 1250,                          // OpenAI API使用量
+    csvFilePath: "/reports/analysis-xyz.csv",   // 詳細結果CSV保存パス
+    summary: {                                  // 要約データ（UI表示用）
+        overallSentiment: "ポジティブ",
+        mainTopics: ["AI技術", "機械学習"],
+        tweetCount: 25
+    },
+    createdAt: "2025-07-01T18:00:00Z",
+    processingTime: 150
+}
+
+// 4. 拡張: collected_tweets に分析済みフラグ追加
+collected_tweets/ {
+    // 既存フィールド...
+    analysis: {
+        analyzed: true,
+        analysisIds: ["analysis-1751400000-abc123"],
+        lastAnalyzed: "2025-07-01T18:00:00Z"
+    }
+}
+```
+
+##### 🎨 **UI機能**
+```
+1. テンプレート管理ページ (/analysis-templates.html)
+   - ChatGPTプロンプトテンプレートの作成・編集・削除
+   - カテゴリ別管理（感情分析、トレンド分析、要約、カスタム）
+   - テスト実行機能
+   
+2. リスト設定拡張 (/list-scheduler.html)
+   - ChatGPT分析の有効/無効切り替え
+   - 分析テンプレート選択
+   - 分析頻度設定（手動・毎日・毎週・ツイート取得毎）
+   - 実行時刻・最低/最大ツイート数設定
+   - Discord通知設定
+   
+3. 分析結果表示ページ (/analysis-results.html)
+   - 分析履歴一覧
+   - 詳細結果表示
+   - CSVダウンロード機能
+```
+
+##### ⚙️ **Railway Worker拡張**
+```javascript
+// TwitterWorker.js に追加機能
+class TwitterWorker {
+    // 既存のprocessScheduledTasks()に分析チェック追加
+    async checkAndRunAnalysis() {
+        // 分析対象リスト取得
+        const listsSnapshot = await getDocs(
+            query(collection(db, 'twitter_lists'), where('analysis.enabled', '==', true))
+        );
+        
+        // 分析実行条件チェック
+        for (const listDoc of listsSnapshot.docs) {
+            const shouldAnalyze = await this.shouldRunAnalysis(listData, now);
+            if (shouldAnalyze) {
+                await this.executeChatGPTAnalysis(job);
+            }
+        }
+    }
+    
+    async executeChatGPTAnalysis(job) {
+        // 1. 分析対象ツイート取得（未分析 + 件数制限）
+        // 2. テンプレート取得
+        // 3. ChatGPT API呼び出し
+        // 4. 結果保存（Firestore + CSV）
+        // 5. Discord通知
+        // 6. ツイート分析済みフラグ更新
+    }
+}
+```
+
+##### 🔗 **API エンドポイント**
+```
+GET  /api/analysis/templates           # テンプレート一覧取得
+POST /api/analysis/templates           # テンプレート作成
+PUT  /api/analysis/templates/:id       # テンプレート更新
+DELETE /api/analysis/templates/:id     # テンプレート削除
+
+POST /api/analysis/execute/:listId     # 手動分析実行
+GET  /api/analysis/results/:listId     # 分析結果一覧
+GET  /api/analysis/download/:analysisId # CSV結果ダウンロード
+
+PUT  /api/lists/:listId/analysis       # リスト分析設定更新
+```
+
+##### 📋 **実装手順**
+```
+Phase 2.1: データベース拡張
+□ analysis_templates コレクション作成
+□ twitter_lists に analysis フィールド追加  
+□ ai_analysis コレクション作成
+□ collected_tweets に analysis フィールド追加
+
+Phase 2.2: UI実装
+□ テンプレート管理ページ作成
+□ リスト設定画面にChatGPT設定追加
+□ 分析結果表示ページ作成
+
+Phase 2.3: Worker実装  
+□ TwitterWorker にChatGPT分析機能追加
+□ OpenAI API連携実装
+□ 分析スケジューリング実装
+□ CSV出力機能実装
+
+Phase 2.4: API実装
+□ テンプレート管理API
+□ 手動分析実行API  
+□ 分析結果取得API
+□ ファイルダウンロードAPI
+```
+
+##### 💰 **コスト考慮**
+```
+OpenAI API使用量制御:
+- minTweets/maxTweets による対象件数制限
+- テンプレート別 maxTokens 設定
+- 分析頻度制御（manual/daily/weekly/per_execution）
+- 重複分析防止（analyzed フラグ）
+
+想定月間コスト（GPT-4使用）:
+- 1リスト・日次分析（50ツイート/日）: 約$3-5/月
+- 5リスト・日次分析: 約$15-25/月
+```
+
+##### 🎯 **期待される成果**
+- **自動感情分析**: ツイートの感情傾向を定期的に把握
+- **トレンド把握**: 話題のトピックを自動検出
+- **要約レポート**: 大量ツイートの要点を自動抽出
+- **カスタム分析**: 独自のプロンプトで柔軟な分析
+- **CSV出力**: 詳細データの二次活用
+- **Discord通知**: 分析完了の即座通知
 
 #### Phase 3: Advanced Analytics
 - リアルタイム分析ダッシュボード
