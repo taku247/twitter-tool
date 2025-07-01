@@ -3347,6 +3347,324 @@ app.get('/api/config/firebase', (req, res) => {
     }
 });
 
+// ========== ChatGPT分析関連API ==========
+
+// 分析テンプレート一覧取得
+app.get('/api/analysis/templates', async (req, res) => {
+    try {
+        console.log('📋 Getting analysis templates...');
+        
+        const templatesRef = collection(db, 'analysis_templates');
+        const templatesQuery = query(templatesRef, orderBy('createdAt', 'desc'));
+        const snapshot = await getDocs(templatesQuery);
+        
+        const templates = [];
+        snapshot.forEach(doc => {
+            templates.push({
+                id: doc.id,
+                ...doc.data(),
+                createdAt: doc.data().createdAt?.toDate?.() || doc.data().createdAt,
+                updatedAt: doc.data().updatedAt?.toDate?.() || doc.data().updatedAt
+            });
+        });
+        
+        console.log(`✅ Found ${templates.length} analysis templates`);
+        res.json({ success: true, templates });
+        
+    } catch (error) {
+        console.error('❌ Error getting analysis templates:', error);
+        res.status(500).json({ 
+            success: false, 
+            error: error.message 
+        });
+    }
+});
+
+// 分析テンプレート作成
+app.post('/api/analysis/templates', async (req, res) => {
+    try {
+        const { name, category, description, prompt, maxTokens, temperature } = req.body;
+        
+        // バリデーション
+        if (!name || !category || !prompt) {
+            return res.status(400).json({
+                success: false,
+                error: 'Name, category, and prompt are required'
+            });
+        }
+        
+        console.log(`📝 Creating analysis template: ${name}`);
+        
+        const templateData = {
+            name,
+            category,
+            description: description || '',
+            prompt,
+            maxTokens: maxTokens || 2000,
+            temperature: temperature || 0.7,
+            active: true,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+            usage: {
+                totalRuns: 0,
+                lastUsed: null
+            }
+        };
+        
+        const templatesRef = collection(db, 'analysis_templates');
+        const docRef = await addDoc(templatesRef, templateData);
+        
+        console.log(`✅ Analysis template created with ID: ${docRef.id}`);
+        res.json({ 
+            success: true, 
+            id: docRef.id,
+            template: templateData
+        });
+        
+    } catch (error) {
+        console.error('❌ Error creating analysis template:', error);
+        res.status(500).json({ 
+            success: false, 
+            error: error.message 
+        });
+    }
+});
+
+// 分析テンプレート更新
+app.put('/api/analysis/templates/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const updates = req.body;
+        
+        console.log(`📝 Updating analysis template: ${id}`);
+        
+        // updatedAtを追加
+        updates.updatedAt = new Date();
+        
+        const templateRef = doc(db, 'analysis_templates', id);
+        await updateDoc(templateRef, updates);
+        
+        console.log(`✅ Analysis template updated: ${id}`);
+        res.json({ success: true });
+        
+    } catch (error) {
+        console.error('❌ Error updating analysis template:', error);
+        res.status(500).json({ 
+            success: false, 
+            error: error.message 
+        });
+    }
+});
+
+// 分析テンプレート削除
+app.delete('/api/analysis/templates/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        
+        console.log(`🗑️ Deleting analysis template: ${id}`);
+        
+        const templateRef = doc(db, 'analysis_templates', id);
+        await deleteDoc(templateRef);
+        
+        console.log(`✅ Analysis template deleted: ${id}`);
+        res.json({ success: true });
+        
+    } catch (error) {
+        console.error('❌ Error deleting analysis template:', error);
+        res.status(500).json({ 
+            success: false, 
+            error: error.message 
+        });
+    }
+});
+
+// リスト分析設定取得
+app.get('/api/analysis/lists/:listId/settings', async (req, res) => {
+    try {
+        const { listId } = req.params;
+        
+        console.log(`📋 Getting analysis settings for list: ${listId}`);
+        
+        const listRef = doc(db, 'twitter_lists', listId);
+        const listDoc = await getDoc(listRef);
+        
+        if (!listDoc.exists()) {
+            return res.status(404).json({
+                success: false,
+                error: 'List not found'
+            });
+        }
+        
+        const listData = listDoc.data();
+        const analysisSettings = listData.analysis || {
+            enabled: false,
+            templateId: null,
+            frequency: 'daily',
+            minTweets: 5,
+            maxTweets: 50,
+            lastAnalyzed: null
+        };
+        
+        console.log(`✅ Analysis settings retrieved for list: ${listId}`);
+        res.json({ 
+            success: true, 
+            settings: analysisSettings 
+        });
+        
+    } catch (error) {
+        console.error('❌ Error getting analysis settings:', error);
+        res.status(500).json({ 
+            success: false, 
+            error: error.message 
+        });
+    }
+});
+
+// リスト分析設定更新
+app.put('/api/analysis/lists/:listId/settings', async (req, res) => {
+    try {
+        const { listId } = req.params;
+        const { enabled, templateId, frequency, minTweets, maxTweets } = req.body;
+        
+        console.log(`📝 Updating analysis settings for list: ${listId}`);
+        
+        const analysisSettings = {
+            enabled: enabled || false,
+            templateId: templateId || null,
+            frequency: frequency || 'daily',
+            minTweets: minTweets || 5,
+            maxTweets: maxTweets || 50,
+            updatedAt: new Date()
+        };
+        
+        const listRef = doc(db, 'twitter_lists', listId);
+        await updateDoc(listRef, { 
+            analysis: analysisSettings,
+            updatedAt: new Date()
+        });
+        
+        console.log(`✅ Analysis settings updated for list: ${listId}`);
+        res.json({ success: true, settings: analysisSettings });
+        
+    } catch (error) {
+        console.error('❌ Error updating analysis settings:', error);
+        res.status(500).json({ 
+            success: false, 
+            error: error.message 
+        });
+    }
+});
+
+// 分析履歴取得
+app.get('/api/analysis/history', async (req, res) => {
+    try {
+        const { listId, limit: queryLimit } = req.query;
+        const limitCount = parseInt(queryLimit) || 20;
+        
+        console.log(`📋 Getting analysis history (limit: ${limitCount})`);
+        
+        let analysisQuery;
+        if (listId) {
+            analysisQuery = query(
+                collection(db, 'ai_analysis'),
+                where('sourceId', '==', listId),
+                orderBy('createdAt', 'desc'),
+                limit(limitCount)
+            );
+        } else {
+            analysisQuery = query(
+                collection(db, 'ai_analysis'),
+                orderBy('createdAt', 'desc'),
+                limit(limitCount)
+            );
+        }
+        
+        const snapshot = await getDocs(analysisQuery);
+        
+        const history = [];
+        snapshot.forEach(doc => {
+            const data = doc.data();
+            history.push({
+                id: doc.id,
+                ...data,
+                createdAt: data.createdAt?.toDate?.() || data.createdAt,
+                completedAt: data.completedAt?.toDate?.() || data.completedAt
+            });
+        });
+        
+        console.log(`✅ Found ${history.length} analysis records`);
+        res.json({ success: true, history });
+        
+    } catch (error) {
+        console.error('❌ Error getting analysis history:', error);
+        res.status(500).json({ 
+            success: false, 
+            error: error.message 
+        });
+    }
+});
+
+// 手動分析実行（Railway Workerに依頼）
+app.post('/api/analysis/manual/:listId', async (req, res) => {
+    try {
+        const { listId } = req.params;
+        const { templateId } = req.body;
+        
+        if (!templateId) {
+            return res.status(400).json({
+                success: false,
+                error: 'Template ID is required'
+            });
+        }
+        
+        console.log(`🤖 Manual analysis requested for list: ${listId}, template: ${templateId}`);
+        
+        // Railway Workerにジョブを送信
+        const workerUrl = process.env.RAILWAY_WORKER_URL;
+        const workerSecret = process.env.WORKER_SECRET;
+        
+        if (!workerUrl || !workerSecret) {
+            return res.status(500).json({
+                success: false,
+                error: 'Railway Worker not configured'
+            });
+        }
+        
+        const jobData = {
+            type: 'manual_analysis',
+            data: {
+                listId,
+                templateId,
+                requestedBy: 'manual',
+                requestedAt: new Date().toISOString()
+            },
+            requestId: `manual-${Date.now()}-${Math.random().toString(36).substr(2, 8)}`
+        };
+        
+        const response = await axios.post(`${workerUrl}/job`, jobData, {
+            headers: {
+                'Authorization': `Bearer ${workerSecret}`,
+                'Content-Type': 'application/json'
+            },
+            timeout: 30000
+        });
+        
+        console.log(`✅ Manual analysis job submitted: ${jobData.requestId}`);
+        res.json({ 
+            success: true, 
+            jobId: jobData.requestId,
+            message: 'Analysis job submitted to Railway Worker'
+        });
+        
+    } catch (error) {
+        console.error('❌ Error submitting manual analysis job:', error);
+        res.status(500).json({ 
+            success: false, 
+            error: error.message 
+        });
+    }
+});
+
 // Debug: Check Firestore templates
 app.get('/api/debug/templates', async (req, res) => {
     try {

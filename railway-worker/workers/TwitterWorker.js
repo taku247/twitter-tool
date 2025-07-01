@@ -126,6 +126,9 @@ class TwitterWorker {
                 case 'twitter_list_processing':
                     result = await this.processTwitterList(data);
                     break;
+                case 'manual_analysis':
+                    result = await this.processManualAnalysis(data);
+                    break;
                 case 'test':
                     result = await this.processTestJob(data);
                     break;
@@ -640,6 +643,74 @@ class TwitterWorker {
             
         } catch (error) {
             console.error('Failed to log cron execution:', error);
+        }
+    }
+    
+    // ========== 手動分析処理 ==========
+    async processManualAnalysis(data) {
+        console.log('🤖 Processing manual analysis job:', data);
+        
+        const { listId, templateId } = data;
+        
+        if (!listId || !templateId) {
+            throw new Error('Missing required parameters: listId and templateId');
+        }
+        
+        try {
+            // リストデータ取得
+            const listDoc = await getDoc(doc(this.db, 'twitter_lists', listId));
+            
+            if (!listDoc.exists()) {
+                throw new Error(`List not found: ${listId}`);
+            }
+            
+            const listData = listDoc.data();
+            console.log(`📋 Manual analysis for list: ${listData.name} (${listId})`);
+            
+            // テンプレート存在確認
+            const template = await this.templateManager.getById(templateId);
+            if (!template) {
+                throw new Error(`Template not found: ${templateId}`);
+            }
+            
+            console.log(`📝 Using template: ${template.name} (${templateId})`);
+            
+            // 分析実行
+            const analysisResult = await this.chatGPTAnalyzer.analyze(
+                listId,
+                listData,
+                templateId,
+                {
+                    manualRequest: true,
+                    requestedBy: data.requestedBy || 'manual',
+                    requestedAt: data.requestedAt
+                }
+            );
+            
+            // リストの最終分析時刻を更新
+            if (listData.analysis) {
+                await updateDoc(doc(this.db, 'twitter_lists', listId), {
+                    'analysis.lastAnalyzed': Timestamp.now(),
+                    updatedAt: Timestamp.now()
+                });
+            }
+            
+            console.log(`✅ Manual analysis completed: ${analysisResult.analysisId}`);
+            
+            return {
+                success: true,
+                analysisId: analysisResult.analysisId,
+                listName: listData.name,
+                templateName: template.name,
+                summary: analysisResult.summary,
+                tweetCount: analysisResult.tweetCount,
+                tokensUsed: analysisResult.tokensUsed,
+                csvPath: analysisResult.csvPath
+            };
+            
+        } catch (error) {
+            console.error(`❌ Manual analysis failed: ${error.message}`);
+            throw error;
         }
     }
     
