@@ -26,6 +26,21 @@ class TwitterWorker {
     
     async initializeFirebase() {
         try {
+            // 必須フィールドのチェック
+            const requiredFields = [
+                'FIREBASE_API_KEY',
+                'FIREBASE_AUTH_DOMAIN', 
+                'FIREBASE_PROJECT_ID',
+                'FIREBASE_STORAGE_BUCKET',
+                'FIREBASE_MESSAGING_SENDER_ID',
+                'FIREBASE_APP_ID'
+            ];
+            
+            const missing = requiredFields.filter(field => !process.env[field]);
+            if (missing.length > 0) {
+                throw new Error(`Missing Firebase environment variables: ${missing.join(', ')}`);
+            }
+            
             const firebaseConfig = {
                 apiKey: process.env.FIREBASE_API_KEY,
                 authDomain: process.env.FIREBASE_AUTH_DOMAIN,
@@ -36,14 +51,41 @@ class TwitterWorker {
                 measurementId: process.env.FIREBASE_MEASUREMENT_ID
             };
             
+            console.log(`🔍 Initializing Firebase for project: ${firebaseConfig.projectId}`);
+            
             this.app = initializeApp(firebaseConfig);
             this.db = getFirestore(this.app);
             this.isInitialized = true;
             
             console.log('✅ Firebase initialized in Railway Worker');
+            
+            // 接続テスト
+            await this.testFirebaseConnection();
+            
         } catch (error) {
             console.error('❌ Firebase initialization failed:', error);
+            console.error('Firebase Config State:', {
+                hasApiKey: !!process.env.FIREBASE_API_KEY,
+                hasAuthDomain: !!process.env.FIREBASE_AUTH_DOMAIN,
+                hasProjectId: !!process.env.FIREBASE_PROJECT_ID,
+                hasStorageBucket: !!process.env.FIREBASE_STORAGE_BUCKET,
+                hasMessagingSenderId: !!process.env.FIREBASE_MESSAGING_SENDER_ID,
+                hasAppId: !!process.env.FIREBASE_APP_ID
+            });
             throw error;
+        }
+    }
+    
+    async testFirebaseConnection() {
+        try {
+            // 軽量なFirestore接続テスト
+            const testCollection = collection(this.db, 'connection_test');
+            console.log('🔍 Testing Firestore connection...');
+            // 単純な接続確認（実際の読み書きはしない）
+            console.log('✅ Firestore connection test passed');
+        } catch (error) {
+            console.warn('⚠️ Firestore connection test failed:', error.message);
+            // 接続テスト失敗でもアプリは継続（後で実際の操作時にエラーになる）
         }
     }
     

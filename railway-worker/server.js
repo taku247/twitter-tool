@@ -5,8 +5,25 @@ const compression = require('compression');
 const rateLimit = require('express-rate-limit');
 require('dotenv').config();
 
-// Worker classes
-const TwitterWorker = require('./workers/TwitterWorker');
+// 環境変数検証
+const { validateEnvironment, debugEnvironment } = require('./config/environment');
+
+// 環境変数チェック
+if (!validateEnvironment()) {
+    console.error('❌ Environment validation failed. Exiting...');
+    process.exit(1);
+}
+debugEnvironment();
+
+// Worker classes (遅延読み込み対応)
+let TwitterWorker;
+try {
+    TwitterWorker = require('./workers/TwitterWorker');
+    console.log('✅ TwitterWorker class loaded successfully');
+} catch (error) {
+    console.error('❌ Failed to load TwitterWorker:', error.message);
+    console.error('This may be due to missing environment variables');
+}
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -78,6 +95,10 @@ app.post('/api/worker/execute', authenticateWorker, async (req, res) => {
                 console.log(`🔄 Starting job execution: ${requestId}`);
                 
                 // TwitterWorkerで実際の処理を実行
+                if (!TwitterWorker) {
+                    throw new Error('TwitterWorker class not available');
+                }
+                
                 const worker = new TwitterWorker();
                 const result = await worker.processJob({ type, data, requestId });
                 
