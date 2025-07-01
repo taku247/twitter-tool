@@ -2677,6 +2677,7 @@ const cronExecutor = async (req, res) => {
             // Railway Workerが失敗した場合はフォールバック実行
             console.log(`🔄 [${executionId}] Falling back to legacy execution...`);
             return await cronExecutorLegacy(req, res);
+        }
     } catch (error) {
         console.error(`❌ [${executionId}] Cron execution error:`, error);
         return res.status(500).json({ 
