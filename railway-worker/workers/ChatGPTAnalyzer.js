@@ -14,7 +14,7 @@ const {
     writeBatch,
     arrayUnion 
 } = require('firebase/firestore');
-const fetch = require('node-fetch');
+// Node.js 18以降は内蔵fetchを使用
 const fs = require('fs').promises;
 const path = require('path');
 
