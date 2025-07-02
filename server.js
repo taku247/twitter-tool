@@ -813,6 +813,57 @@ async function executeLocalAnalysis(listId, templateId) {
     };
 }
 
+// デバッグ用：collected_tweetsの状況確認
+app.get('/api/debug/tweets/:listId', async (req, res) => {
+    try {
+        const { listId } = req.params;
+        
+        console.log(`🔍 Checking collected_tweets for listId: ${listId}`);
+        
+        // 全てのクエリパターンを試行
+        const queries = [
+            { name: 'exact_match', query: query(collection(db, 'collected_tweets'), where('listId', '==', listId), limit(5)) },
+            { name: 'string_match', query: query(collection(db, 'collected_tweets'), where('listId', '==', String(listId)), limit(5)) },
+            { name: 'all_tweets', query: query(collection(db, 'collected_tweets'), limit(10)) }
+        ];
+        
+        const results = {};
+        
+        for (const q of queries) {
+            try {
+                const snapshot = await getDocs(q.query);
+                results[q.name] = {
+                    count: snapshot.size,
+                    samples: []
+                };
+                
+                snapshot.forEach(doc => {
+                    const data = doc.data();
+                    results[q.name].samples.push({
+                        listId: data.listId,
+                        listIdType: typeof data.listId,
+                        text: data.text?.substring(0, 50) + '...',
+                        createdAt: data.createdAt?.toDate?.() || data.createdAt
+                    });
+                });
+            } catch (error) {
+                results[q.name] = { error: error.message };
+            }
+        }
+        
+        res.json({
+            success: true,
+            searchListId: listId,
+            searchListIdType: typeof listId,
+            results: results
+        });
+        
+    } catch (error) {
+        console.error('❌ Debug tweets error:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
 // HTTPサーバーを作成
 const server = http.createServer(app);
 
@@ -4710,6 +4761,11 @@ app.post('/api/analysis/execute/:listId', async (req, res) => {
         
         if (!workerUrl || !workerSecret) {
             console.log('⚠️ Railway Worker not configured, executing analysis locally');
+            console.log('Environment check:', { 
+                hasWorkerUrl: !!workerUrl, 
+                hasWorkerSecret: !!workerSecret,
+                hasOpenAI: !!openai 
+            });
             
             // ローカル実行フォールバック
             try {

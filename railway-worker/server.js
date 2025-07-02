@@ -22,7 +22,9 @@ try {
     console.log('✅ TwitterWorker class loaded successfully');
 } catch (error) {
     console.error('❌ Failed to load TwitterWorker:', error.message);
-    console.error('This may be due to missing environment variables');
+    console.error('Full error:', error);
+    console.error('Stack trace:', error.stack);
+    console.error('This may be due to missing environment variables or module dependencies');
 }
 
 const app = express();
@@ -96,7 +98,8 @@ app.post('/api/worker/execute', authenticateWorker, async (req, res) => {
                 
                 // TwitterWorkerで実際の処理を実行
                 if (!TwitterWorker) {
-                    throw new Error('TwitterWorker class not available');
+                    console.error('❌ TwitterWorker class not available - check Railway logs for initialization errors');
+                    throw new Error('TwitterWorker class not available - service initialization failed');
                 }
                 
                 const worker = new TwitterWorker();

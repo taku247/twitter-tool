@@ -52,7 +52,8 @@
       "mcp__ide__executeCode",
       "Bash(-H \"Content-Type: application/json\")",
       "Bash(npm test:*)",
-      "mcp__ide__getDiagnostics"
+      "mcp__ide__getDiagnostics",
+      "Bash(-d '{\"\"templateId\"\": \"\"ycStGpqhEPsBJaIr2xJr\"\"}' -v)"
     ],
     "deny": []
   }
