@@ -20,11 +20,25 @@ let TwitterWorker;
 try {
     TwitterWorker = require('./workers/TwitterWorker');
     console.log('✅ TwitterWorker class loaded successfully');
+    console.log('TwitterWorker type:', typeof TwitterWorker);
+    console.log('TwitterWorker constructor:', TwitterWorker ? TwitterWorker.name : 'undefined');
+    
+    // テスト初期化
+    try {
+        const testWorker = new TwitterWorker();
+        console.log('✅ TwitterWorker test instantiation successful');
+        console.log('TwitterWorker instance methods:', Object.getOwnPropertyNames(Object.getPrototypeOf(testWorker)));
+    } catch (initError) {
+        console.error('❌ TwitterWorker instantiation failed:', initError.message);
+        console.error('Init error details:', initError);
+        TwitterWorker = null; // 初期化に失敗した場合はnullにする
+    }
 } catch (error) {
     console.error('❌ Failed to load TwitterWorker:', error.message);
     console.error('Full error:', error);
     console.error('Stack trace:', error.stack);
     console.error('This may be due to missing environment variables or module dependencies');
+    TwitterWorker = null;
 }
 
 const app = express();
