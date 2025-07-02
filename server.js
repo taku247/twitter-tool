@@ -4737,6 +4737,11 @@ app.post('/api/analysis/execute/:listId', async (req, res) => {
         }
         
         console.log(`🤖 Manual analysis execution request for list: ${listId}, template: ${templateId}`);
+        console.log('Environment check:', {
+            hasRailwayUrl: !!process.env.RAILWAY_WORKER_URL,
+            hasWorkerSecret: !!process.env.WORKER_SECRET,
+            railwayUrl: process.env.RAILWAY_WORKER_URL || 'NOT_SET'
+        });
         
         // TwitterリストIDからFirestoreドキュメントIDを取得
         const listQuery = query(
@@ -4824,7 +4829,7 @@ app.post('/api/analysis/execute/:listId', async (req, res) => {
             requestId: `list-manual-${Date.now()}-${Math.random().toString(36).substring(2, 10)}`
         };
         
-        await axios.post(`${workerUrl}/job`, jobData, {
+        await axios.post(`${workerUrl}/api/worker/execute`, jobData, {
             headers: {
                 'Authorization': `Bearer ${workerSecret}`,
                 'Content-Type': 'application/json'
