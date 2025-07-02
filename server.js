@@ -4504,15 +4504,22 @@ app.get('/api/lists/:listId/analysis', async (req, res) => {
         
         console.log(`📋 Getting list analysis settings for: ${listId}`);
         
-        const listRef = doc(db, 'twitter_lists', listId);
-        const listDoc = await getDoc(listRef);
+        // TwitterリストIDでFirestoreドキュメントを検索
+        const listQuery = query(
+            collection(db, 'twitter_lists'),
+            where('twitterListId', '==', listId),
+            limit(1)
+        );
+        const listSnapshot = await getDocs(listQuery);
         
-        if (!listDoc.exists()) {
+        if (listSnapshot.empty) {
             return res.status(404).json({
                 success: false,
                 error: 'List not found'
             });
         }
+        
+        const listDoc = listSnapshot.docs[0];
         
         const listData = listDoc.data();
         res.json({ 
@@ -4547,8 +4554,23 @@ app.put('/api/lists/:listId/analysis', async (req, res) => {
         
         console.log(`📝 Updating list analysis settings for: ${listId}`);
         
-        const listRef = doc(db, 'twitter_lists', listId);
-        await updateDoc(listRef, {
+        // TwitterリストIDでFirestoreドキュメントを検索
+        const listQuery = query(
+            collection(db, 'twitter_lists'),
+            where('twitterListId', '==', listId),
+            limit(1)
+        );
+        const listSnapshot = await getDocs(listQuery);
+        
+        if (listSnapshot.empty) {
+            return res.status(404).json({
+                success: false,
+                error: 'List not found'
+            });
+        }
+        
+        const listDocRef = listSnapshot.docs[0].ref;
+        await updateDoc(listDocRef, {
             analysis: {
                 ...analysis,
                 updatedAt: new Date()
@@ -4583,6 +4605,23 @@ app.post('/api/analysis/execute/:listId', async (req, res) => {
         
         console.log(`🤖 Manual analysis execution request for list: ${listId}, template: ${templateId}`);
         
+        // TwitterリストIDからFirestoreドキュメントIDを取得
+        const listQuery = query(
+            collection(db, 'twitter_lists'),
+            where('twitterListId', '==', listId),
+            limit(1)
+        );
+        const listSnapshot = await getDocs(listQuery);
+        
+        if (listSnapshot.empty) {
+            return res.status(404).json({
+                success: false,
+                error: 'List not found'
+            });
+        }
+        
+        const firestoreListId = listSnapshot.docs[0].id;
+        
         // Railway Workerにジョブを送信
         const workerUrl = process.env.RAILWAY_WORKER_URL;
         const workerSecret = process.env.WORKER_SECRET;
@@ -4597,7 +4636,7 @@ app.post('/api/analysis/execute/:listId', async (req, res) => {
         const jobData = {
             type: 'manual_analysis',
             data: {
-                listId,
+                listId: firestoreListId,
                 templateId,
                 requestedBy: 'list_manager',
                 requestedAt: new Date().toISOString()
