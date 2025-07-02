@@ -731,6 +731,103 @@ app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
+// ローカル分析実行関数
+async function executeLocalAnalysis(listId, templateId) {
+    console.log(`🤖 Starting local analysis for list: ${listId}, template: ${templateId}`);
+    
+    if (!openai) {
+        throw new Error('OpenAI API is not configured');
+    }
+    
+    // リスト情報取得
+    const listDoc = await getDoc(doc(db, 'twitter_lists', listId));
+    if (!listDoc.exists()) {
+        throw new Error('List not found');
+    }
+    const listData = listDoc.data();
+    
+    // テンプレート取得
+    const templateDoc = await getDoc(doc(db, 'analysis_templates', templateId));
+    if (!templateDoc.exists()) {
+        throw new Error('Template not found');
+    }
+    const template = templateDoc.data();
+    
+    // ツイート取得
+    const tweetsQuery = query(
+        collection(db, 'collected_tweets'),
+        where('listId', '==', listId),
+        orderBy('createdAt', 'desc'),
+        limit(template.maxTweets || 50)
+    );
+    const tweetsSnapshot = await getDocs(tweetsQuery);
+    
+    if (tweetsSnapshot.empty) {
+        throw new Error('No tweets found for analysis');
+    }
+    
+    const tweets = [];
+    tweetsSnapshot.forEach(doc => {
+        const data = doc.data();
+        tweets.push({
+            text: data.text,
+            author: data.author,
+            createdAt: data.createdAt?.toDate?.() || new Date(data.createdAt)
+        });
+    });
+    
+    console.log(`📊 Analyzing ${tweets.length} tweets with template: ${template.name}`);
+    
+    // プロンプト作成
+    const tweetsText = tweets.map(tweet => 
+        `@${tweet.author}: ${tweet.text}`
+    ).join('\n\n');
+    
+    const prompt = template.prompt.replace('{{ tweets }}', tweetsText);
+    
+    // ChatGPT分析実行
+    const startTime = Date.now();
+    const response = await openai.chat.completions.create({
+        model: 'gpt-4',
+        messages: [
+            { role: 'user', content: prompt }
+        ],
+        max_tokens: template.maxTokens || 2000,
+        temperature: template.temperature || 0.7
+    });
+    
+    const processingTime = Date.now() - startTime;
+    const summary = response.choices[0].message.content;
+    const tokensUsed = response.usage.total_tokens;
+    
+    // 分析結果をFirestoreに保存
+    const analysisData = {
+        listId: listId,
+        listName: listData.name,
+        templateId: templateId,
+        templateName: template.name,
+        status: 'completed',
+        summary: summary,
+        tweetCount: tweets.length,
+        tokensUsed: tokensUsed,
+        processingTime: processingTime,
+        prompt: prompt,
+        createdAt: new Date(),
+        executionType: 'manual_local'
+    };
+    
+    const analysisRef = await addDoc(collection(db, 'ai_analysis'), analysisData);
+    
+    console.log(`✅ Local analysis completed: ${analysisRef.id}`);
+    
+    return {
+        analysisId: analysisRef.id,
+        summary: summary,
+        tweetCount: tweets.length,
+        processingTime: processingTime
+    };
+}
+
 // HTTPサーバーを作成
 const server = http.createServer(app);
 
@@ -4627,10 +4724,23 @@ app.post('/api/analysis/execute/:listId', async (req, res) => {
         const workerSecret = process.env.WORKER_SECRET;
         
         if (!workerUrl || !workerSecret) {
-            return res.status(500).json({
-                success: false,
-                error: 'Railway Worker not configured'
-            });
+            console.log('⚠️ Railway Worker not configured, executing analysis locally');
+            
+            // ローカル実行フォールバック
+            try {
+                const result = await executeLocalAnalysis(firestoreListId, templateId);
+                return res.json({
+                    success: true,
+                    message: 'Analysis executed locally',
+                    analysisId: result.analysisId
+                });
+            } catch (localError) {
+                console.error('❌ Local analysis execution failed:', localError);
+                return res.status(500).json({
+                    success: false,
+                    error: 'Local analysis execution failed: ' + localError.message
+                });
+            }
         }
         
         const jobData = {
