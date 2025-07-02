@@ -455,7 +455,7 @@ class TwitterWorker {
         
         // テンプレート存在確認
         try {
-            const template = await this.templateManager.getById(templateId);
+            const template = await this.templateManager.get(templateId);
             if (!template) {
                 return { should: false, reason: 'Template not found' };
             }
@@ -668,7 +668,7 @@ class TwitterWorker {
             console.log(`📋 Manual analysis for list: ${listData.name} (${listId})`);
             
             // テンプレート存在確認
-            const template = await this.templateManager.getById(templateId);
+            const template = await this.templateManager.get(templateId);
             if (!template) {
                 throw new Error(`Template not found: ${templateId}`);
             }
