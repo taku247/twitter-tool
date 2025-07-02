@@ -89,12 +89,28 @@ app.get('/health', (req, res) => {
     });
 });
 
+// ========== デバッグエンドポイント ==========
+app.post('/api/debug/log-test', async (req, res) => {
+    console.log('🔥 DEBUG: Log test endpoint called');
+    console.log('🔥 DEBUG: Request body:', JSON.stringify(req.body));
+    console.log('🔥 DEBUG: TwitterWorker available:', !!TwitterWorker);
+    
+    res.json({
+        success: true,
+        message: 'Debug log test completed',
+        twitterWorkerAvailable: !!TwitterWorker,
+        timestamp: new Date().toISOString()
+    });
+});
+
 // ========== ワーカー実行エンドポイント ==========
 app.post('/api/worker/execute', authenticateWorker, async (req, res) => {
     try {
         const { type, data, requestId } = req.body;
         
         console.log(`📋 Job received: ${type} | Request: ${requestId} | Time: ${new Date().toISOString()}`);
+        console.log('🔥 DEBUG: TwitterWorker status:', !!TwitterWorker);
+        console.log('🔥 DEBUG: Request body:', JSON.stringify(req.body, null, 2));
         
         // 即座にレスポンスを返す（Vercelのタイムアウト対策）
         res.json({ 
