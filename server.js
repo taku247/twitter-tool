@@ -763,7 +763,7 @@ async function executeLocalAnalysis(listId, templateId) {
     const tweetsSnapshot = await getDocs(tweetsQuery);
     
     if (tweetsSnapshot.empty) {
-        throw new Error('No tweets found for analysis');
+        throw new Error('TWEETS_NOT_FOUND');
     }
     
     const tweets = [];
@@ -800,31 +800,16 @@ async function executeLocalAnalysis(listId, templateId) {
     const summary = response.choices[0].message.content;
     const tokensUsed = response.usage.total_tokens;
     
-    // 分析結果をFirestoreに保存
-    const analysisData = {
-        listId: listId,
-        listName: listData.name,
-        templateId: templateId,
-        templateName: template.name,
-        status: 'completed',
-        summary: summary,
-        tweetCount: tweets.length,
-        tokensUsed: tokensUsed,
-        processingTime: processingTime,
-        prompt: prompt,
-        createdAt: new Date(),
-        executionType: 'manual_local'
-    };
+    console.log(`✅ Local analysis completed`);
     
-    const analysisRef = await addDoc(collection(db, 'ai_analysis'), analysisData);
-    
-    console.log(`✅ Local analysis completed: ${analysisRef.id}`);
-    
+    // 手動実行はDB保存せず、結果のみ返す
     return {
-        analysisId: analysisRef.id,
         summary: summary,
         tweetCount: tweets.length,
-        processingTime: processingTime
+        processingTime: processingTime,
+        tokensUsed: tokensUsed,
+        listName: listData.name,
+        templateName: template.name
     };
 }
 
@@ -4732,14 +4717,43 @@ app.post('/api/analysis/execute/:listId', async (req, res) => {
                 return res.json({
                     success: true,
                     message: 'Analysis executed locally',
-                    analysisId: result.analysisId
+                    result: result
                 });
             } catch (localError) {
                 console.error('❌ Local analysis execution failed:', localError);
-                return res.status(500).json({
-                    success: false,
-                    error: 'Local analysis execution failed: ' + localError.message
-                });
+                
+                // エラーの種類に応じて適切なステータスコードを返す
+                if (localError.message === 'TWEETS_NOT_FOUND') {
+                    return res.status(404).json({
+                        success: false,
+                        error: 'No tweets found',
+                        message: 'このリストにはまだツイートが収集されていません。定期収集でツイートが蓄積されるまでお待ちください。'
+                    });
+                } else if (localError.message === 'List not found') {
+                    return res.status(404).json({
+                        success: false,
+                        error: 'List not found',
+                        message: '指定されたリストが見つかりません。'
+                    });
+                } else if (localError.message === 'Template not found') {
+                    return res.status(404).json({
+                        success: false,
+                        error: 'Template not found',
+                        message: '指定された分析テンプレートが見つかりません。'
+                    });
+                } else if (localError.message === 'OpenAI API is not configured') {
+                    return res.status(503).json({
+                        success: false,
+                        error: 'Service unavailable',
+                        message: 'ChatGPT分析機能が設定されていません。管理者にお問い合わせください。'
+                    });
+                } else {
+                    return res.status(500).json({
+                        success: false,
+                        error: 'Analysis execution failed',
+                        message: '分析実行中にエラーが発生しました: ' + localError.message
+                    });
+                }
             }
         }
         
