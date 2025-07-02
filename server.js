@@ -4436,6 +4436,275 @@ app.post('/api/cron/summarize-lists', async (req, res) => {
     }
 });
 
+// 分析履歴取得
+app.get('/api/analysis/history', async (req, res) => {
+    try {
+        const { limit: queryLimit } = req.query;
+        const limitCount = parseInt(queryLimit) || 20;
+        
+        console.log(`📋 Getting analysis history (limit: ${limitCount})`);
+        
+        const analysisQuery = query(
+            collection(db, 'ai_analysis'),
+            orderBy('createdAt', 'desc'),
+            limit(limitCount)
+        );
+        
+        const snapshot = await getDocs(analysisQuery);
+        
+        const history = [];
+        snapshot.forEach(doc => {
+            const data = doc.data();
+            history.push({
+                id: doc.id,
+                ...data,
+                createdAt: data.createdAt?.toDate?.() || data.createdAt
+            });
+        });
+        
+        console.log(`✅ Retrieved ${history.length} analysis records`);
+        res.json({ success: true, history });
+        
+    } catch (error) {
+        console.error('❌ Error getting analysis history:', error);
+        res.status(500).json({ 
+            success: false, 
+            error: error.message 
+        });
+    }
+});
+
+// Firebase設定配信エンドポイント
+app.get('/api/firebase-config', (_req, res) => {
+    try {
+        const config = {
+            apiKey: process.env.FIREBASE_API_KEY,
+            authDomain: process.env.FIREBASE_AUTH_DOMAIN,
+            projectId: process.env.FIREBASE_PROJECT_ID,
+            storageBucket: process.env.FIREBASE_STORAGE_BUCKET,
+            messagingSenderId: process.env.FIREBASE_MESSAGING_SENDER_ID,
+            appId: process.env.FIREBASE_APP_ID,
+            measurementId: process.env.FIREBASE_MEASUREMENT_ID
+        };
+        
+        res.json(config);
+    } catch (error) {
+        console.error('❌ Error getting Firebase config:', error);
+        res.status(500).json({ 
+            success: false, 
+            error: 'Failed to get Firebase configuration' 
+        });
+    }
+});
+
+// リスト分析設定取得（統合版）
+app.get('/api/lists/:listId/analysis', async (req, res) => {
+    try {
+        const { listId } = req.params;
+        
+        console.log(`📋 Getting list analysis settings for: ${listId}`);
+        
+        const listRef = doc(db, 'twitter_lists', listId);
+        const listDoc = await getDoc(listRef);
+        
+        if (!listDoc.exists()) {
+            return res.status(404).json({
+                success: false,
+                error: 'List not found'
+            });
+        }
+        
+        const listData = listDoc.data();
+        res.json({ 
+            success: true,
+            listId: listId,
+            name: listData.name,
+            analysis: listData.analysis || {
+                enabled: false,
+                templateId: null,
+                frequency: 'manual',
+                schedule: '18:00',
+                minTweets: 5,
+                maxTweets: 50,
+                discordNotify: true
+            }
+        });
+        
+    } catch (error) {
+        console.error('❌ Error getting list analysis settings:', error);
+        res.status(500).json({ 
+            success: false, 
+            error: error.message 
+        });
+    }
+});
+
+// リスト分析設定更新（統合版）
+app.put('/api/lists/:listId/analysis', async (req, res) => {
+    try {
+        const { listId } = req.params;
+        const { analysis } = req.body;
+        
+        console.log(`📝 Updating list analysis settings for: ${listId}`);
+        
+        const listRef = doc(db, 'twitter_lists', listId);
+        await updateDoc(listRef, {
+            analysis: {
+                ...analysis,
+                updatedAt: new Date()
+            },
+            updatedAt: new Date()
+        });
+        
+        console.log(`✅ List analysis settings updated: ${listId}`);
+        res.json({ success: true });
+        
+    } catch (error) {
+        console.error('❌ Error updating list analysis settings:', error);
+        res.status(500).json({ 
+            success: false, 
+            error: error.message 
+        });
+    }
+});
+
+// 手動分析実行（リスト管理画面用）
+app.post('/api/analysis/execute/:listId', async (req, res) => {
+    try {
+        const { listId } = req.params;
+        const { templateId } = req.body;
+        
+        if (!templateId) {
+            return res.status(400).json({
+                success: false,
+                error: 'Template ID is required'
+            });
+        }
+        
+        console.log(`🤖 Manual analysis execution request for list: ${listId}, template: ${templateId}`);
+        
+        // Railway Workerにジョブを送信
+        const workerUrl = process.env.RAILWAY_WORKER_URL;
+        const workerSecret = process.env.WORKER_SECRET;
+        
+        if (!workerUrl || !workerSecret) {
+            return res.status(500).json({
+                success: false,
+                error: 'Railway Worker not configured'
+            });
+        }
+        
+        const jobData = {
+            type: 'manual_analysis',
+            data: {
+                listId,
+                templateId,
+                requestedBy: 'list_manager',
+                requestedAt: new Date().toISOString()
+            },
+            requestId: `list-manual-${Date.now()}-${Math.random().toString(36).substring(2, 10)}`
+        };
+        
+        await axios.post(`${workerUrl}/job`, jobData, {
+            headers: {
+                'Authorization': `Bearer ${workerSecret}`,
+                'Content-Type': 'application/json'
+            },
+            timeout: 30000
+        });
+        
+        console.log(`✅ Manual analysis job submitted from list manager: ${jobData.requestId}`);
+        res.json({ 
+            success: true, 
+            jobId: jobData.requestId,
+            message: 'Analysis job submitted to Railway Worker'
+        });
+        
+    } catch (error) {
+        console.error('❌ Error submitting manual analysis job from list manager:', error);
+        res.status(500).json({ 
+            success: false, 
+            error: error.message 
+        });
+    }
+});
+
+// CSV分析結果ダウンロード
+app.get('/api/analysis/download', async (req, res) => {
+    try {
+        const { path: csvPath } = req.query;
+        
+        if (!csvPath) {
+            return res.status(400).json({
+                success: false,
+                error: 'CSV path is required'
+            });
+        }
+        
+        console.log(`📥 CSV download request: ${csvPath}`);
+        
+        // セキュリティチェック: パスがレポートディレクトリ内にあることを確認
+        const fs = require('fs');
+        const pathUtil = require('path');
+        
+        // 絶対パスに変換
+        const fullPath = pathUtil.resolve(csvPath);
+        const reportsDir = pathUtil.resolve('./reports');
+        
+        // reports ディレクトリ内のファイルのみ許可
+        if (!fullPath.startsWith(reportsDir)) {
+            return res.status(403).json({
+                success: false,
+                error: 'Access denied: Invalid file path'
+            });
+        }
+        
+        // ファイル存在確認
+        if (!fs.existsSync(fullPath)) {
+            return res.status(404).json({
+                success: false,
+                error: 'CSV file not found'
+            });
+        }
+        
+        // ファイル情報取得
+        const stats = fs.statSync(fullPath);
+        const fileName = pathUtil.basename(fullPath);
+        
+        console.log(`📊 Serving CSV file: ${fileName} (${stats.size} bytes)`);
+        
+        // CSVファイルとしてダウンロード
+        res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+        res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+        res.setHeader('Content-Length', stats.size);
+        
+        // ファイルストリームで送信
+        const fileStream = fs.createReadStream(fullPath);
+        fileStream.pipe(res);
+        
+        fileStream.on('end', () => {
+            console.log(`✅ CSV download completed: ${fileName}`);
+        });
+        
+        fileStream.on('error', (error) => {
+            console.error(`❌ CSV download error: ${error.message}`);
+            if (!res.headersSent) {
+                res.status(500).json({
+                    success: false,
+                    error: 'File read error'
+                });
+            }
+        });
+        
+    } catch (error) {
+        console.error('❌ CSV download error:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+});
+
 // サーバー起動
 if (process.env.VERCEL) {
     // Vercel環境

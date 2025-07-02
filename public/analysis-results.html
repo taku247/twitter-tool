@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>分析結果 - Twitter Analytics Tool</title>
+    <link rel="stylesheet" href="style.css">
+    <style>
+        .analysis-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+            gap: 1.5rem;
+            margin-top: 1rem;
+        }
+
+        .analysis-card {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 1.5rem;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .analysis-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+        }
+
+        .analysis-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 1rem;
+        }
+
+        .analysis-status {
+            padding: 0.25rem 0.75rem;
+            border-radius: 15px;
+            font-size: 0.85rem;
+            font-weight: 500;
+        }
+
+        .status-completed {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .status-error {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .status-processing {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .analysis-meta {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+        }
+
+        .analysis-summary {
+            background: var(--code-bg);
+            border-radius: 6px;
+            padding: 1rem;
+            margin: 1rem 0;
+            border-left: 4px solid var(--accent-color);
+        }
+
+        .analysis-stats {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 1rem;
+            margin: 1rem 0;
+        }
+
+        .stat-item {
+            text-align: center;
+            padding: 0.75rem;
+            background: var(--bg-secondary);
+            border-radius: 6px;
+        }
+
+        .stat-value {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: var(--accent-color);
+        }
+
+        .stat-label {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            margin-top: 0.25rem;
+        }
+
+        .analysis-actions {
+            display: flex;
+            gap: 0.5rem;
+            margin-top: 1rem;
+        }
+
+        .btn-small {
+            padding: 0.5rem 1rem;
+            font-size: 0.85rem;
+            border-radius: 4px;
+            border: none;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+
+        .btn-view {
+            background: var(--accent-color);
+            color: white;
+        }
+
+        .btn-download {
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+            border: 1px solid var(--border-color);
+        }
+
+        .btn-small:hover {
+            opacity: 0.9;
+        }
+
+        .filters {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 2rem;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        .filter-group {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .filter-select {
+            padding: 0.5rem;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            background: var(--input-bg);
+            color: var(--text-primary);
+        }
+
+        .search-box {
+            flex: 1;
+            min-width: 200px;
+        }
+
+        .search-input {
+            width: 100%;
+            padding: 0.75rem;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            background: var(--input-bg);
+            color: var(--text-primary);
+        }
+
+        .loading-state {
+            text-align: center;
+            padding: 3rem;
+            color: var(--text-secondary);
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 3rem;
+            color: var(--text-secondary);
+        }
+
+        .pagination {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 1rem;
+            margin-top: 2rem;
+        }
+
+        .pagination-btn {
+            padding: 0.5rem 1rem;
+            border: 1px solid var(--border-color);
+            background: var(--card-bg);
+            color: var(--text-primary);
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+
+        .pagination-btn:hover:not(:disabled) {
+            background: var(--bg-secondary);
+        }
+
+        .pagination-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.7);
+            z-index: 1000;
+            display: none;
+            backdrop-filter: blur(5px);
+        }
+
+        .modal {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: var(--card-bg);
+            border-radius: 12px;
+            max-width: 90vw;
+            max-height: 90vh;
+            overflow: hidden;
+            z-index: 1001;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+        }
+
+        .modal-header {
+            padding: 1.5rem;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .modal-title {
+            font-size: 1.2rem;
+            font-weight: 600;
+        }
+
+        .modal-close {
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            cursor: pointer;
+            color: var(--text-secondary);
+            padding: 0.25rem;
+        }
+
+        .modal-content {
+            padding: 1.5rem;
+            overflow-y: auto;
+            max-height: calc(90vh - 120px);
+        }
+
+        .analysis-detail {
+            line-height: 1.6;
+        }
+
+        .detail-section {
+            margin-bottom: 2rem;
+        }
+
+        .detail-section h4 {
+            margin-bottom: 0.75rem;
+            color: var(--accent-color);
+        }
+
+        @media (max-width: 768px) {
+            .analysis-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .filters {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            
+            .analysis-stats {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- ナビゲーション -->
+        <nav class="nav">
+            <div class="nav-brand">
+                <h1>📊 Twitter Analytics Tool</h1>
+            </div>
+            <div class="nav-links">
+                <a href="/" class="nav-link">🔍 ツイート検索</a>
+                <a href="/list-scheduler.html" class="nav-link">📋 リスト管理</a>
+                <a href="/kaitotweet.html" class="nav-link">🤖 KaitoTweet</a>
+                <a href="/analysis-templates.html" class="nav-link">📝 テンプレート</a>
+                <a href="/analysis-results.html" class="nav-link active">📊 分析結果</a>
+            </div>
+        </nav>
+
+        <main class="main-content">
+            <div class="page-header">
+                <h2>📊 分析結果</h2>
+                <p>ChatGPT分析の実行履歴と結果を確認できます。</p>
+            </div>
+
+            <!-- フィルター -->
+            <div class="filters">
+                <div class="search-box">
+                    <input type="text" id="searchInput" class="search-input" placeholder="リスト名やテンプレート名で検索...">
+                </div>
+                <div class="filter-group">
+                    <label>ステータス:</label>
+                    <select id="statusFilter" class="filter-select">
+                        <option value="">すべて</option>
+                        <option value="completed">完了</option>
+                        <option value="error">エラー</option>
+                        <option value="processing">処理中</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label>期間:</label>
+                    <select id="periodFilter" class="filter-select">
+                        <option value="">すべて</option>
+                        <option value="today">今日</option>
+                        <option value="week">過去1週間</option>
+                        <option value="month">過去1ヶ月</option>
+                    </select>
+                </div>
+                <button id="refreshBtn" class="btn btn-secondary">🔄 更新</button>
+            </div>
+
+            <!-- 分析結果一覧 -->
+            <div id="analysisGrid" class="analysis-grid">
+                <!-- 動的に生成 -->
+            </div>
+
+            <!-- ローディング状態 -->
+            <div id="loadingState" class="loading-state">
+                <div class="spinner"></div>
+                <p>分析結果を読み込んでいます...</p>
+            </div>
+
+            <!-- 空状態 -->
+            <div id="emptyState" class="empty-state" style="display: none;">
+                <h3>📭 分析結果がありません</h3>
+                <p>まだChatGPT分析が実行されていません。</p>
+                <a href="/list-scheduler.html" class="btn btn-primary">リストを管理</a>
+            </div>
+
+            <!-- ページネーション -->
+            <div id="pagination" class="pagination" style="display: none;">
+                <button id="prevBtn" class="pagination-btn">← 前へ</button>
+                <span id="pageInfo">1 / 1</span>
+                <button id="nextBtn" class="pagination-btn">次へ →</button>
+            </div>
+        </main>
+    </div>
+
+    <!-- 詳細モーダル -->
+    <div id="modalOverlay" class="modal-overlay">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 id="modalTitle" class="modal-title">分析結果詳細</h3>
+                <button id="modalClose" class="modal-close">&times;</button>
+            </div>
+            <div id="modalContent" class="modal-content">
+                <!-- 動的に生成 -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Firebase Configuration -->
+    <script type="module">
+        // Firebase設定は動的に読み込み
+        window.FIREBASE_CONFIG = {
+            apiKey: "{{ FIREBASE_API_KEY }}",
+            authDomain: "{{ FIREBASE_AUTH_DOMAIN }}",
+            projectId: "{{ FIREBASE_PROJECT_ID }}",
+            storageBucket: "{{ FIREBASE_STORAGE_BUCKET }}",
+            messagingSenderId: "{{ FIREBASE_MESSAGING_SENDER_ID }}",
+            appId: "{{ FIREBASE_APP_ID }}",
+            measurementId: "{{ FIREBASE_MEASUREMENT_ID }}"
+        };
+    </script>
+
+    <script type="module" src="js/analysis-results.js"></script>
+</body>
+</html>
