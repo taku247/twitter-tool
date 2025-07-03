@@ -186,10 +186,14 @@ class ChatGPTAnalyzer {
             `[${index + 1}] @${t.authorName} (${new Date(t.createdAt).toLocaleString('ja-JP')}): ${t.text}`
         ).join('\n\n');
         
-        // プロンプト生成
+        console.log(`📝 Preparing ChatGPT prompt with ${tweets.length} tweets`);
+        console.log(`📝 Template prompt: ${template.prompt?.substring(0, 100)}...`);
+        console.log(`📝 Tweet texts preview: ${tweetTexts.substring(0, 200)}...`);
+        
+        // プロンプト生成（スペースありなしの両方に対応）
         const prompt = template.prompt
-            .replace('{{tweets}}', tweetTexts)
-            .replace('{{tweet_count}}', tweets.length.toString());
+            .replace(/\{\{\s*tweets\s*\}\}/g, tweetTexts)
+            .replace(/\{\{\s*tweet_count\s*\}\}/g, tweets.length.toString());
         
         try {
             const response = await fetch('https://api.openai.com/v1/chat/completions', {
