@@ -13,6 +13,15 @@ https://twitterapi.io/tweet-filter-rules
 - **CSV エクスポート**: 詳細分析結果のダウンロード機能
 - **統合 UI**: リスト管理画面での分析設定・手動実行
 
+### 🔧 Bug Fixes & Improvements (2025-07-03)
+- **分析結果表示修正**: "Unknown List" と 0 値の表示問題を解決
+  - TwitterリストIDとFirestoreドキュメントIDの不一致を修正
+  - 手動分析後の表示フィールド更新処理を追加
+  - 処理時間をミリ秒単位で正しく保存・表示
+- **テンプレート処理修正**: `{{ tweets }}` プレースホルダーのスペース対応
+  - 正規表現を使用してスペースの有無に関わらず置換
+- **ChatGPT返信表示**: 分析詳細画面で完全な返信を確認可能に
+
 ### 🧪 Quality Assurance
 - **41 テスト全パス**: 包括的なテストカバレッジ
 - **エラーハンドリング**: 自動復旧・フォールバック機能
@@ -38,6 +47,7 @@ https://twitterapi.io/tweet-filter-rules
 -   ✅ **Real-time Updates** - Live analysis status with Firestore integration
 -   ✅ **Secure CSV Export** - Download detailed analysis results
 -   ✅ **Integrated UI** - Unified analysis settings in list management
+-   ✅ **Manual Analysis** - Execute on-demand analysis from list management page
 
 ## 🛠️ Tech Stack
 
@@ -143,8 +153,8 @@ PUT    /api/analysis/templates/:id     - Update template
 DELETE /api/analysis/templates/:id     - Delete template
 
 # Analysis Execution
-POST   /api/analysis/manual/:listId    - Execute manual analysis
-POST   /api/analysis/execute/:listId   - Execute from list manager
+POST   /api/analysis/manual/:listId    - Execute manual analysis (deprecated)
+POST   /api/analysis/execute/:listId   - Execute from list manager (NEW)
 GET    /api/analysis/history           - Get analysis history
 GET    /api/analysis/download          - Download CSV results
 
@@ -168,6 +178,67 @@ GET    /api/health                    - Health check
 GET    /api/firebase-config           - Get Firebase configuration
 GET    /api/discord/test              - Test Discord webhook
 POST   /api/cron/universal-executor   - Cron job trigger
+```
+
+### Railway Worker APIs
+```
+POST   /api/worker/execute            - Execute job on Railway Worker
+       Body: { type, data, requestId }
+       Types: scheduled_processing, manual_analysis, test
+```
+
+## 📊 ChatGPT Analysis Features
+
+### Manual Analysis Execution
+
+手動分析機能により、リスト管理画面から即座にChatGPT分析を実行できます。
+
+#### 実行フロー
+
+1. **ブラウザ（リスト管理画面）**
+   - 分析設定の「手動分析実行」ボタンをクリック
+   - `/api/analysis/execute/:listId` にPOSTリクエスト
+
+2. **Vercel サーバー**
+   - リクエストを受信し、Railway Workerにジョブを転送
+   - 即座にレスポンスを返す（タイムアウト回避）
+
+3. **Railway Worker**
+   - `type: 'manual_analysis'` のジョブを処理
+   - FirestoreからツイートとテンプレートのデータをLOAD
+   - ChatGPT APIを呼び出して分析実行
+
+4. **データ保存**
+   - `ai_analysis` コレクション: 分析結果全体を保存
+   - `collected_tweets` コレクション: 各ツイートに分析済みフラグを設定
+   - CSVファイル: `./reports/年/月/analysis-{id}.csv` に保存
+
+5. **結果表示**
+   - 分析結果ページで自動的に更新（Firestoreリアルタイムリスナー）
+   - 詳細表示でChatGPTの完全な返信を確認可能
+
+#### 保存されるデータ
+
+```javascript
+{
+  // ai_analysisコレクション
+  analysisId: "analysis-1751509364035-kw3hdg5q",
+  status: "completed",
+  listName: "Fixed Database Test List",
+  templateName: "test",
+  tweetCount: 5,
+  tokensUsed: 778,
+  processingTime: 15234,  // ミリ秒
+  summary: "分析結果の要約...",
+  output: {
+    rawResponse: "ChatGPTの完全な返信...",
+    model: "gpt-4",
+    temperature: 0.7
+  },
+  csvFilePath: "./reports/2025/07/analysis-xxx.csv",
+  createdAt: Timestamp,
+  completedAt: Timestamp
+}
 ```
 
 ## 🚀 Production Deployment
