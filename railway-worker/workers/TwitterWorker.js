@@ -703,7 +703,7 @@ class TwitterWorker {
                 tweetCount: analysisResult.tweetCount,
                 tokensUsed: analysisResult.tokensUsed,
                 summary: analysisResult.summary || '分析完了',
-                processingTime: Math.round((Date.now() - startTime) / 1000)
+                processingTime: Date.now() - startTime  // ミリ秒単位で保存
             });
             
             console.log(`✅ Manual analysis completed: ${analysisResult.analysisId}`);

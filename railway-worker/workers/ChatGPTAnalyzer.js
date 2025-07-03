@@ -81,7 +81,7 @@ class ChatGPTAnalyzer {
                 summary: parsedResult.summary || this.generateSummary(parsedResult),
                 csvFilePath: csvPath,
                 completedAt: Timestamp.now(),
-                processingTime: Math.round((Date.now() - startTime) / 1000)
+                processingTime: Date.now() - startTime  // ミリ秒単位で保存
             });
             
             // 8. ツイートに分析済みフラグ設定
