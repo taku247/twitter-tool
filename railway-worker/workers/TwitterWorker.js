@@ -649,6 +649,7 @@ class TwitterWorker {
     // ========== 手動分析処理 ==========
     async processManualAnalysis(data) {
         console.log('🤖 Processing manual analysis job:', data);
+        const startTime = Date.now();
         
         const { listId, templateId } = data;
         
