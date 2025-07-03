@@ -204,10 +204,12 @@ class TwitterWorker {
         // ChatGPT分析実行
         const analysisResults = await this.checkAndRunAnalysis(tasksToExecute);
         
-        // Discord通知
-        if (results.length > 0 || analysisResults.length > 0) {
-            await this.sendDiscordSummary(results, analysisResults);
-        }
+        // Discord通知（タスクがない場合でもステータス通知を送信）
+        await this.sendDiscordSummary(results, analysisResults, {
+            totalActiveTasks: allTasks.length,
+            executedTasks: tasksToExecute.length,
+            skippedTasks: allTasks.length - tasksToExecute.length
+        });
         
         return { 
             executedTasks: results.length, 
@@ -524,7 +526,7 @@ class TwitterWorker {
     }
     
     // ========== Discord通知 ==========
-    async sendDiscordSummary(results, analysisResults = []) {
+    async sendDiscordSummary(results, analysisResults = [], statusInfo = {}) {
         try {
             const successCount = results.filter(r => r.success).length;
             const errorCount = results.filter(r => !r.success).length;
@@ -541,6 +543,15 @@ class TwitterWorker {
                 { name: "❌ タスクエラー", value: errorCount.toString(), inline: true },
                 { name: "🐦 新規ツイート", value: totalNewTweets.toString(), inline: true }
             ];
+            
+            // ステータス情報を追加
+            if (statusInfo.totalActiveTasks !== undefined) {
+                fields.push(
+                    { name: "📋 アクティブタスク", value: statusInfo.totalActiveTasks.toString(), inline: true },
+                    { name: "⏰ 実行対象", value: statusInfo.executedTasks.toString(), inline: true },
+                    { name: "⏭️ スキップ", value: statusInfo.skippedTasks.toString(), inline: true }
+                );
+            }
             
             // 分析結果がある場合
             if (analysisResults.length > 0) {
@@ -574,6 +585,15 @@ class TwitterWorker {
             
             if (allDetails) {
                 fields.push({ name: "📋 詳細", value: allDetails.substring(0, 1024), inline: false });
+            }
+            
+            // 実行対象がない場合のメッセージ
+            if (results.length === 0 && analysisResults.length === 0) {
+                fields.push({ 
+                    name: "ℹ️ 状態", 
+                    value: "実行対象のタスクがありませんでした", 
+                    inline: false 
+                });
             }
             
             const totalErrors = errorCount + analysisError;
