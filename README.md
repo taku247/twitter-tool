@@ -189,6 +189,43 @@ POST   /api/worker/execute            - Execute job on Railway Worker
 
 ## 📊 ChatGPT Analysis Features
 
+### 🔄 Analysis Execution Timing
+
+ChatGPT分析は以下のタイミングで実行されます：
+
+#### 自動分析（定期実行）
+**実行タイミング**: 15分ごと
+- Vercelのcron（`/api/execute`）が15分間隔で実行
+- Railway Workerに`scheduled_processing`ジョブを送信
+- 新規ツイート取得後、各リストの分析設定をチェック
+- **条件を満たす場合に自動実行**
+
+**自動実行の条件**:
+- ✅ リストの分析が有効（`analysis.enabled = true`）
+- ✅ 分析テンプレートが設定済み
+- ✅ 分析頻度の条件を満たしている：
+  - `daily`: 24時間ごと
+  - `weekly`: 168時間ごと
+  - `per_execution`: ツイート取得毎
+- ✅ 未分析ツイートが最低数（デフォルト5件）以上
+
+#### 手動分析
+**実行方法**:
+1. **リスト設定画面**（`list-scheduler.html`）
+   - 「🤖 分析設定」→「🔄 手動分析を実行」ボタン
+2. **分析履歴画面**（`analysis-results.html`）
+   - 各リストの手動実行ボタン
+
+**即座に実行**: ボタンクリック後すぐにRailway Workerで処理開始
+
+#### 設定方法
+**リスト設定画面で設定**:
+- 分析の有効/無効
+- 分析テンプレート選択
+- 分析頻度（手動/毎日/毎週）
+- 最低・最大ツイート数
+- Discord通知設定
+
 ### Manual Analysis Execution
 
 手動分析機能により、リスト管理画面から即座にChatGPT分析を実行できます。
