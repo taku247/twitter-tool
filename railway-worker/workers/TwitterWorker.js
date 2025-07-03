@@ -695,6 +695,15 @@ class TwitterWorker {
                 });
             }
             
+            // ai_analysisレコードに表示用フィールドを更新
+            await this.chatGPTAnalyzer.updateAnalysisRecord(analysisResult.analysisId, {
+                listName: listData.name,
+                templateName: template.name,
+                tweetCount: analysisResult.tweetCount,
+                tokensUsed: analysisResult.tokensUsed,
+                summary: analysisResult.summary
+            });
+            
             console.log(`✅ Manual analysis completed: ${analysisResult.analysisId}`);
             
             return {
