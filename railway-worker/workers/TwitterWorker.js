@@ -701,7 +701,8 @@ class TwitterWorker {
                 templateName: template.name,
                 tweetCount: analysisResult.tweetCount,
                 tokensUsed: analysisResult.tokensUsed,
-                summary: analysisResult.summary
+                summary: analysisResult.summary || '分析完了',
+                processingTime: Math.round((Date.now() - startTime) / 1000)
             });
             
             console.log(`✅ Manual analysis completed: ${analysisResult.analysisId}`);
