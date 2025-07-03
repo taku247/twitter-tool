@@ -53,7 +53,8 @@
       "Bash(-H \"Content-Type: application/json\")",
       "Bash(npm test:*)",
       "mcp__ide__getDiagnostics",
-      "Bash(-d '{\"\"templateId\"\": \"\"ycStGpqhEPsBJaIr2xJr\"\"}' -v)"
+      "Bash(-d '{\"\"templateId\"\": \"\"ycStGpqhEPsBJaIr2xJr\"\"}' -v)",
+      "Bash(cp:*)"
     ],
     "deny": []
   }
