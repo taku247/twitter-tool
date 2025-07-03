@@ -411,11 +411,29 @@ class AnalysisResultsManager {
                 </div>
 
                 <div class="detail-section">
-                    <h4>📝 分析結果</h4>
+                    <h4>📝 分析結果要約</h4>
                     <div class="analysis-summary">
                         ${result.summary || 'No summary available'}
                     </div>
                 </div>
+
+                ${result.output?.rawResponse ? `
+                    <div class="detail-section">
+                        <h4>🤖 ChatGPT 完全な返信</h4>
+                        <div style="background: var(--code-bg); padding: 1rem; border-radius: 6px; white-space: pre-wrap; max-height: 400px; overflow-y: auto;">
+                            ${result.output.rawResponse}
+                        </div>
+                    </div>
+                ` : ''}
+
+                ${result.output ? `
+                    <div class="detail-section">
+                        <h4>📊 分析メタデータ</h4>
+                        <p><strong>使用モデル:</strong> ${result.output.model || 'N/A'}</p>
+                        <p><strong>Temperature:</strong> ${result.output.temperature || 'N/A'}</p>
+                        <p><strong>使用トークン数:</strong> ${result.output.tokensUsed || 0} tokens</p>
+                    </div>
+                ` : ''}
 
                 ${result.error ? `
                     <div class="detail-section">
