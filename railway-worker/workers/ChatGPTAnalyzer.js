@@ -126,28 +126,44 @@ class ChatGPTAnalyzer {
         const minTweets = analysisConfig.minTweets || 5;
         const maxTweets = analysisConfig.maxTweets || 50;
         
-        // 未分析のツイートを優先的に取得
-        let tweetsQuery = query(
+        // 未分析のツイートを直接取得
+        const unanalyzedQuery = query(
             collection(this.db, 'collected_tweets'),
             where('sourceId', '==', listId),
+            where('analysis.analyzed', '==', false),
             orderBy('createdAt', 'desc'),
-            limit(maxTweets * 2) // 余裕を持って取得
+            limit(maxTweets)
         );
         
-        const snapshot = await getDocs(tweetsQuery);
+        const unanalyzedSnapshot = await getDocs(unanalyzedQuery);
         
-        // 未分析ツイートをフィルタリング
         const unanalyzedTweets = [];
-        const analyzedTweets = [];
-        
-        snapshot.docs.forEach(doc => {
+        unanalyzedSnapshot.docs.forEach(doc => {
             const tweet = { docId: doc.id, ...doc.data() };
-            if (!tweet.analysis?.analyzed) {
-                unanalyzedTweets.push(tweet);
-            } else {
-                analyzedTweets.push(tweet);
-            }
+            unanalyzedTweets.push(tweet);
         });
+        
+        console.log(`📊 Found ${unanalyzedTweets.length} unanalyzed tweets`);
+        
+        // 不足分は分析済みツイートから補充（最後の手段）
+        let analyzedTweets = [];
+        if (unanalyzedTweets.length < minTweets) {
+            console.log(`⚠️ Not enough unanalyzed tweets (${unanalyzedTweets.length} < ${minTweets}), fetching analyzed tweets as fallback`);
+            
+            const analyzedQuery = query(
+                collection(this.db, 'collected_tweets'),
+                where('sourceId', '==', listId),
+                where('analysis.analyzed', '==', true),
+                orderBy('createdAt', 'desc'),
+                limit(minTweets - unanalyzedTweets.length)
+            );
+            
+            const analyzedSnapshot = await getDocs(analyzedQuery);
+            analyzedSnapshot.docs.forEach(doc => {
+                const tweet = { docId: doc.id, ...doc.data() };
+                analyzedTweets.push(tweet);
+            });
+        }
         
         // 未分析ツイートを優先、不足分は分析済みから補充
         let targetTweets = unanalyzedTweets.slice(0, maxTweets);
