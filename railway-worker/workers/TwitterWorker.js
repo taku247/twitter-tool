@@ -194,15 +194,22 @@ class TwitterWorker {
             try {
                 console.log(`▶️ Executing task: ${task.name || task.id}`);
                 const result = await this.executeTwitterListTask(task, now);
-                results.push({ taskId: task.id, taskName: task.name, success: true, result });
+                results.push({ 
+                    taskId: task.id, 
+                    taskName: task.name, 
+                    success: true, 
+                    result,
+                    config: task.config  // 分析で必要な設定情報を保持
+                });
             } catch (error) {
                 console.error(`❌ Task failed: ${task.id}`, error);
                 results.push({ taskId: task.id, taskName: task.name, success: false, error: error.message });
             }
         }
         
-        // ChatGPT分析実行
-        const analysisResults = await this.checkAndRunAnalysis(tasksToExecute);
+        // ChatGPT分析実行（成功したタスクのみ）
+        const successfulResults = results.filter(r => r.success);
+        const analysisResults = await this.checkAndRunAnalysis(successfulResults);
         
         // Discord通知（タスクがない場合でもステータス通知を送信）
         await this.sendDiscordSummary(results, analysisResults, {
@@ -392,11 +399,18 @@ class TwitterWorker {
     async checkAndRunAnalysis(executedTasks) {
         const analysisResults = [];
         
+        console.log(`🔍 Checking analysis for ${executedTasks.length} executed tasks`);
+        
         for (const task of executedTasks) {
             try {
                 // タスク結果からリストデータを取得
                 const listData = task.result?.listData;
-                if (!listData) continue;
+                if (!listData) {
+                    console.log(`⚠️ No listData found for task ${task.taskId}`);
+                    continue;
+                }
+                
+                console.log(`📝 Checking analysis conditions for ${listData.name}`);
                 
                 // ChatGPT分析設定チェック
                 const shouldAnalyze = await this.shouldRunAnalysis(listData, task.config.relatedTableId);
