@@ -504,6 +504,8 @@ class TwitterWorker {
                 return hoursSince >= 24;
             case 'weekly':
                 return hoursSince >= 168; // 7 * 24
+            case 'per_execution':
+                return true; // ツイート取得毎に実行
             default:
                 return hoursSince >= 24; // デフォルトは日次
         }

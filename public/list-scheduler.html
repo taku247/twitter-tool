@@ -529,7 +529,6 @@
                             <option value="manual">手動実行のみ</option>
                             <option value="per_execution">ツイート取得毎</option>
                             <option value="daily">毎日</option>
-                            <option value="weekly">毎週</option>
                         </select>
                     </div>
                     
@@ -786,8 +785,7 @@
             const labels = {
                 manual: '手動実行',
                 per_execution: 'ツイート取得毎',
-                daily: '毎日',
-                weekly: '毎週'
+                daily: '毎日'
             };
             return labels[frequency] || frequency;
         }
@@ -900,7 +898,7 @@
             const frequency = document.getElementById('analysisFrequency').value;
             const scheduleGroup = document.getElementById('scheduleGroup');
             
-            if (frequency === 'daily' || frequency === 'weekly') {
+            if (frequency === 'daily') {
                 scheduleGroup.style.display = 'block';
             } else {
                 scheduleGroup.style.display = 'none';
