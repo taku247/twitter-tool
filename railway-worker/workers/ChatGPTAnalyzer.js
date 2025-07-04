@@ -153,12 +153,24 @@ class ChatGPTAnalyzer {
             targetTweets = targetTweets.concat(analyzedTweets.slice(0, additionalNeeded));
         }
         
-        if (targetTweets.length < minTweets) {
-            console.log(`⚠️ Not enough tweets: ${targetTweets.length} < ${minTweets}`);
+        // 重複チェック（tweetIdベース）
+        const seenTweetIds = new Set();
+        const uniqueTweets = targetTweets.filter(tweet => {
+            if (seenTweetIds.has(tweet.tweetId)) {
+                console.log(`🔄 Duplicate tweet filtered: ${tweet.tweetId}`);
+                return false;
+            }
+            seenTweetIds.add(tweet.tweetId);
+            return true;
+        });
+        
+        if (uniqueTweets.length < minTweets) {
+            console.log(`⚠️ Not enough unique tweets: ${uniqueTweets.length} < ${minTweets}`);
             return null;
         }
         
-        return targetTweets.slice(0, maxTweets);
+        console.log(`📊 Selected ${uniqueTweets.length} unique tweets for analysis`);
+        return uniqueTweets.slice(0, maxTweets);
     }
 
     /**
