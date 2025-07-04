@@ -369,6 +369,10 @@ class TwitterWorker {
                     authorName: tweet.author?.username || tweet.user?.screen_name || tweet.username || 'unknown',
                     createdAt: tweet.created_at || tweet.createdAt || tweet.timestamp,
                     collectedAt: Timestamp.now(),
+                    analysis: {
+                        analyzed: false,
+                        analyzedAt: null
+                    },
                     data: tweet
                 };
                 
@@ -531,13 +535,33 @@ class TwitterWorker {
                 query(
                     collection(this.db, 'collected_tweets'),
                     where('sourceId', '==', listId),
-                    where('analysis.analyzed', '!=', true)
+                    where('analysis.analyzed', '==', false)
                 )
             );
             return snapshot.size;
         } catch (error) {
             console.error('Failed to count unanalyzed tweets:', error);
-            return 0;
+            // フォールバック: 全てのツイートを取得して分析状況をチェック
+            try {
+                const allSnapshot = await getDocs(
+                    query(
+                        collection(this.db, 'collected_tweets'),
+                        where('sourceId', '==', listId)
+                    )
+                );
+                let unanalyzedCount = 0;
+                allSnapshot.forEach(doc => {
+                    const data = doc.data();
+                    if (!data.analysis || data.analysis.analyzed !== true) {
+                        unanalyzedCount++;
+                    }
+                });
+                console.log(`📊 Fallback count: ${unanalyzedCount} unanalyzed tweets`);
+                return unanalyzedCount;
+            } catch (fallbackError) {
+                console.error('Fallback count also failed:', fallbackError);
+                return 0;
+            }
         }
     }
     
