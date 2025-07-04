@@ -149,6 +149,18 @@ describe('TwitterWorker - ChatGPT Integration', () => {
             const result = worker.shouldRunByFrequency(yesterdayDate, 'unknown');
             expect(result).toBe(true);
         });
+
+        test('should always allow per_execution frequency', () => {
+            const oneMinuteAgo = new Date(Date.now() - 1 * 60 * 1000); // 1 minute ago
+            const result = worker.shouldRunByFrequency(oneMinuteAgo, 'per_execution');
+            expect(result).toBe(true);
+        });
+
+        test('should allow per_execution even with very recent analysis', () => {
+            const tenSecondsAgo = new Date(Date.now() - 10 * 1000); // 10 seconds ago
+            const result = worker.shouldRunByFrequency(tenSecondsAgo, 'per_execution');
+            expect(result).toBe(true);
+        });
     });
 
     describe('checkAndRunAnalysis', () => {
@@ -259,6 +271,66 @@ describe('TwitterWorker - ChatGPT Integration', () => {
                 success: false,
                 error: 'API quota exceeded'
             });
+        });
+
+        test('should handle task results with success flag correctly', async () => {
+            jest.spyOn(worker, 'shouldRunAnalysis').mockResolvedValue({
+                should: true,
+                templateId: 'template-123',
+                options: { minTweets: 5, maxTweets: 50 }
+            });
+
+            mockChatGPTAnalyzer.analyze.mockResolvedValue({
+                analysisId: 'analysis-456',
+                summary: 'Test analysis for successful task',
+                tokensUsed: 800
+            });
+
+            // 成功したタスクと失敗したタスクを混在させる
+            const executedTasks = [
+                {
+                    taskId: 'task-1',
+                    taskName: 'Successful Task',
+                    success: true,
+                    config: { relatedTableId: 'list-123' },
+                    result: {
+                        listData: { name: 'Test List' }
+                    }
+                },
+                {
+                    taskId: 'task-2', 
+                    taskName: 'Failed Task',
+                    success: false,
+                    error: 'Network error'
+                }
+            ];
+
+            const result = await worker.checkAndRunAnalysis(executedTasks);
+
+            // 成功したタスクのみ分析される
+            expect(result).toHaveLength(1);
+            expect(result[0].listName).toBe('Test List');
+            expect(mockChatGPTAnalyzer.analyze).toHaveBeenCalledTimes(1);
+        });
+
+        test('should log debug information for analysis checks', async () => {
+            const consoleSpy = jest.spyOn(console, 'log').mockImplementation();
+            
+            const executedTasks = [
+                {
+                    taskId: 'task-1',
+                    success: true,
+                    config: { relatedTableId: 'list-123' },
+                    result: {}  // listDataなし
+                }
+            ];
+
+            await worker.checkAndRunAnalysis(executedTasks);
+
+            expect(consoleSpy).toHaveBeenCalledWith('🔍 Checking analysis for 1 executed tasks');
+            expect(consoleSpy).toHaveBeenCalledWith('⚠️ No listData found for task task-1');
+            
+            consoleSpy.mockRestore();
         });
     });
 
