@@ -39,7 +39,7 @@ class ChatGPTAnalyzer {
             console.log(`🤖 Starting ChatGPT analysis for list: ${listData.name}`);
             
             // 1. 分析レコード作成（処理中）
-            const analysisDoc = await this.createAnalysisRecord(analysisId, listId, templateId, 'processing');
+            const analysisDoc = await this.createAnalysisRecord(analysisId, listId, templateId, 'processing', listData.name, null);
             
             // 2. 分析対象ツイート取得
             const tweets = await this.getAnalysisTargetTweets(listId, listData.analysis || {});
@@ -63,6 +63,10 @@ class ChatGPTAnalyzer {
             // 7. 分析レコード更新（完了）
             await this.updateAnalysisRecord(analysisId, {
                 status: 'completed',
+                listName: listData.name,
+                templateName: template.name,
+                tweetCount: tweets.length,
+                tokensUsed: apiResult.tokensUsed,
                 input: {
                     tweetCount: tweets.length,
                     dateRange: {
@@ -474,12 +478,14 @@ class ChatGPTAnalyzer {
     /**
      * 分析レコード作成
      */
-    async createAnalysisRecord(analysisId, sourceId, templateId, status) {
+    async createAnalysisRecord(analysisId, sourceId, templateId, status, listName = null, templateName = null) {
         const record = {
             analysisId,
             sourceType: 'twitter_list',
             sourceId,
             templateId,
+            listName,
+            templateName,
             status,
             createdAt: Timestamp.now(),
             notifications: {
